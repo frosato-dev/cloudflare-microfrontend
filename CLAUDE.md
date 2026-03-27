@@ -12,6 +12,7 @@ Back Market meta-framework POC — Vue micro-frontends on Cloudflare Workers
 - Monorepo: `packages/shell/`, `packages/fragment-*/`
 - Nuxt-like DX: file-based routing, layouts, middleware
 - Vite builds, `ssr.target: 'webworker'`
+- Vue externalized from fragment client builds, loaded once via import map (`/assets/vue.js`). Shell produces the shared Vue chunk via `manualChunks`
 - Hardest problem: shell hydrating HTML produced by separate fragment Workers
 
 ## Commands

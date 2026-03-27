@@ -54,7 +54,7 @@ describe('shell assembly', () => {
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('data-fragment="header"');
     expect(html).toContain('Mock Header');
-    expect(html).toContain('entry-client.ts');
+    expect(html).toContain('/assets/shell.js');
   });
 
   it('returns 404 for unknown routes', async () => {

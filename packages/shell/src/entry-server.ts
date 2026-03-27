@@ -73,14 +73,16 @@ function buildClientTags(route: MatchedRoute, isDev = false): { headLinks: strin
     };
   }
 
-  // Production: CSS in <head>, JS in <body>
+  // Production: CSS in <head>, import map + JS in <body>
   const links = [
     `<link rel="stylesheet" href="/assets/shell.css">`,
     ...route.fragments.map(
       (frag) => `<link rel="stylesheet" href="/assets/fragment-${frag}.css">`,
     ),
   ];
+  const importMap = `<script type="importmap">${JSON.stringify({ imports: { vue: '/assets/vue.js' } })}</script>`;
   const scripts = [
+    importMap,
     `<script type="module" src="/assets/shell.js"></script>`,
     ...route.fragments.map(
       (frag) => `<script type="module" src="/assets/fragment-${frag}.js"></script>`,

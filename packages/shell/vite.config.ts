@@ -10,7 +10,13 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist/client',
         rollupOptions: {
           input: resolve(__dirname, 'src/entry-client.ts'),
-          output: { entryFileNames: 'shell.js', assetFileNames: 'shell.[ext]', format: 'es' },
+          output: {
+            entryFileNames: 'shell.js',
+            assetFileNames: 'shell.[ext]',
+            format: 'es',
+            chunkFileNames: '[name].js',
+            manualChunks: { vue: ['vue'] },
+          },
         },
       },
     };

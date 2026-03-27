@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist/client',
         rollupOptions: {
           input: resolve(__dirname, 'src/entry-client.ts'),
+          external: ['vue'],
           output: { entryFileNames: 'fragment-product.js', assetFileNames: 'fragment-product.[ext]', format: 'es' },
         },
       },
