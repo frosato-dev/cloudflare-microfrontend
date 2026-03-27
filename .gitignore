@@ -1,4 +1,5 @@
 .claude
 .playwright
 .playwright-cli
-node-modules
+node_modules
+**/dist
