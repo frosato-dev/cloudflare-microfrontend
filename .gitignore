@@ -1,6 +1,6 @@
-.claude
 .playwright
 .playwright-cli
 node_modules
+**/node_modules
 **/dist
 **/.wrangler
