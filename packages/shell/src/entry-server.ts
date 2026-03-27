@@ -12,6 +12,7 @@ export interface FragmentFetcher {
 export async function handleRequest(
   request: Request,
   fetchFragment: FragmentFetcher,
+  options: { isDev?: boolean } = {},
 ): Promise<Response> {
   const url = new URL(request.url);
   const route = matchRoute(url.pathname);
@@ -38,11 +39,13 @@ export async function handleRequest(
   const fragments = Object.fromEntries(fragmentEntries);
 
   // Assemble full HTML
+  const { headLinks, scripts } = buildClientTags(route, options.isDev);
   const html = renderLayout(route.layout, {
     pageHtml,
     fragments,
     route,
-    clientScripts: buildClientScripts(route),
+    headLinks,
+    clientScripts: scripts,
   });
 
   return new Response(html, {
@@ -50,43 +53,55 @@ export async function handleRequest(
   });
 }
 
-function buildClientScripts(route: MatchedRoute): string {
-  const scripts = [
-    '<script type="importmap">',
-    JSON.stringify({
-      imports: {
-        vue: '/node_modules/vue/dist/vue.esm-browser.js',
-      },
-    }),
-    '</script>',
-    `<script type="module" src="/@shell/entry-client.ts"></script>`,
-  ];
-
-  for (const frag of route.fragments) {
-    scripts.push(
-      `<script type="module" src="/@fragment/${frag}/entry-client.ts"></script>`,
-    );
+function buildClientTags(route: MatchedRoute, isDev = false): { headLinks: string; scripts: string } {
+  if (isDev) {
+    return {
+      headLinks: '',
+      scripts: [
+        '<script type="importmap">',
+        JSON.stringify({
+          imports: {
+            vue: '/node_modules/vue/dist/vue.esm-browser.js',
+          },
+        }),
+        '</script>',
+        `<script type="module" src="/@shell/entry-client.ts"></script>`,
+        ...route.fragments.map(
+          (frag) => `<script type="module" src="/@fragment/${frag}/entry-client.ts"></script>`,
+        ),
+      ].join('\n'),
+    };
   }
 
-  return scripts.join('\n');
+  // Production: CSS in <head>, JS in <body>
+  const links = [
+    `<link rel="stylesheet" href="/assets/shell.css">`,
+    ...route.fragments.map(
+      (frag) => `<link rel="stylesheet" href="/assets/fragment-${frag}.css">`,
+    ),
+  ];
+  const scripts = [
+    `<script type="module" src="/assets/shell.js"></script>`,
+    ...route.fragments.map(
+      (frag) => `<script type="module" src="/assets/fragment-${frag}.js"></script>`,
+    ),
+  ];
+  return { headLinks: links.join('\n'), scripts: scripts.join('\n') };
 }
 
-// Worker export for Cloudflare
+// Worker export for Cloudflare — uses service bindings to reach fragments
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Record<string, { fetch: typeof fetch }>): Promise<Response> {
     const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {
-      // In prod, fetch from fragment Worker URLs
-      const config = (await import('../../../framework.config.js')).default;
-      const fragment = config.fragments[fragmentId];
-      if (!fragment) return { html: '' };
+      const bindingKey = `FRAGMENT_${fragmentId.toUpperCase()}`;
+      const binding = env[bindingKey];
+      if (!binding) return { html: '' };
 
-      const fragmentUrl = new URL(fragment.workerUrl);
+      const url = new URL(req.url);
       for (const [k, v] of Object.entries(routeProps)) {
-        fragmentUrl.searchParams.set(k, v);
+        url.searchParams.set(k, v);
       }
-      const res = await fetch(fragmentUrl.toString(), {
-        headers: req.headers,
-      });
+      const res = await binding.fetch(new Request(url.toString(), { headers: req.headers }));
       return res.json() as Promise<FragmentResponse>;
     };
 

@@ -10,12 +10,13 @@ export default defineConfig(({ mode }) => {
         outDir: 'dist/client',
         rollupOptions: {
           input: resolve(__dirname, 'src/entry-client.ts'),
-          output: { entryFileNames: 'fragment-product.js', format: 'es' },
+          output: { entryFileNames: 'fragment-product.js', assetFileNames: 'fragment-product.[ext]', format: 'es' },
         },
       },
     };
   }
 
+  // SSR / Worker build — bundle all deps for CF Workers
   return {
     plugins: [vue()],
     build: {
@@ -23,5 +24,6 @@ export default defineConfig(({ mode }) => {
       outDir: 'dist/server',
       rollupOptions: { output: { format: 'es' } },
     },
+    ssr: { noExternal: true, target: 'webworker' },
   };
 });

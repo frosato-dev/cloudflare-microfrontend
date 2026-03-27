@@ -99,7 +99,7 @@ async function startDevServer() {
         ),
       });
 
-      const response = await handleRequest(request, fragmentFetcher);
+      const response = await handleRequest(request, fragmentFetcher, { isDev: true });
       let html = await response.text();
 
       // Transform client script paths for Vite dev

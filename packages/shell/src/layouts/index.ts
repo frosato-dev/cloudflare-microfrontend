@@ -5,6 +5,7 @@ interface LayoutContext {
   pageHtml: string;
   fragments: Record<string, FragmentResponse>;
   route: MatchedRoute;
+  headLinks: string;
   clientScripts: string;
 }
 
@@ -33,6 +34,7 @@ const layouts: Record<string, (ctx: LayoutContext) => string> = {
     body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; }
   </style>
   ${Object.values(ctx.fragments).map(f => f.css ? `<style>${f.css}</style>` : '').join('\n')}
+  ${ctx.headLinks}
 </head>
 <body>
   <div id="app">
