@@ -1,0 +1,11 @@
+{
+  "name": "@meta-framework/fragment-product",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && vite build --mode client"
+  },
+  "dependencies": {
+    "@meta-framework/shared": "workspace:*"
+  }
+}

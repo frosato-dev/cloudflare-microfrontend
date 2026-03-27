@@ -1,0 +1,65 @@
+import { describe, it, expect } from 'vitest';
+import { render as renderHeader } from '../packages/fragment-header/src/entry-server';
+import { render as renderProduct } from '../packages/fragment-product/src/entry-server';
+import { matchRoute } from '../packages/shell/src/router';
+import { handleRequest } from '../packages/shell/src/entry-server';
+import type { FragmentResponse } from '@meta-framework/shared';
+
+describe('fragment SSR', () => {
+  it('header fragment renders HTML', async () => {
+    const result = await renderHeader();
+    expect(result.html).toContain('Back Market');
+    expect(result.html).toContain('Cart');
+  });
+
+  it('product fragment renders with props', async () => {
+    const url = 'http://localhost:3000/fragment?id=iphone-15';
+    const result = await renderProduct(new Request(url));
+    expect(result.html).toContain('iphone-15');
+    expect(result.html).toContain('$699');
+  });
+});
+
+describe('router', () => {
+  it('matches index route', () => {
+    const route = matchRoute('/');
+    expect(route).toBeTruthy();
+    expect(route!.fragments).toContain('header');
+  });
+
+  it('matches product route with param', () => {
+    const route = matchRoute('/product/galaxy-s24');
+    expect(route).toBeTruthy();
+    expect(route!.props.id).toBe('galaxy-s24');
+    expect(route!.fragments).toContain('product');
+  });
+
+  it('returns null for unknown routes', () => {
+    expect(matchRoute('/unknown')).toBeNull();
+  });
+});
+
+describe('shell assembly', () => {
+  it('renders full page with fragments', async () => {
+    const mockFetcher = async (id: string, _req: Request, _props: Record<string, string> = {}): Promise<FragmentResponse> => {
+      if (id === 'header') return { html: '<header>Mock Header</header>' };
+      if (id === 'product') return { html: '<div>Mock Product</div>' };
+      return { html: '' };
+    };
+
+    const request = new Request('http://localhost:3000/');
+    const response = await handleRequest(request, mockFetcher);
+    const html = await response.text();
+
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('data-fragment="header"');
+    expect(html).toContain('Mock Header');
+    expect(html).toContain('entry-client.ts');
+  });
+
+  it('returns 404 for unknown routes', async () => {
+    const request = new Request('http://localhost:3000/nope');
+    const response = await handleRequest(request, async (_id, _req, _props = {}) => ({ html: '' }));
+    expect(response.status).toBe(404);
+  });
+});
