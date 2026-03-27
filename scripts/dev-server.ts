@@ -1,8 +1,30 @@
-import { createServer, type ViteDevServer } from 'vite';
+import { createServer, type ViteDevServer, type ModuleNode } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 
 const ROOT = resolve(import.meta.dirname, '..');
+
+/** Walk Vite's module graph from entry points, collect CSS from vue style modules */
+function collectStyles(vite: ViteDevServer, entryFiles: string[]): string {
+  const styles: string[] = [];
+  const seen = new Set<string>();
+
+  function walk(mod: ModuleNode | undefined) {
+    if (!mod || seen.has(mod.url)) return;
+    seen.add(mod.url);
+    if (mod.url.includes('vue&type=style')) {
+      const css = mod.ssrModule?.default;
+      if (css) styles.push(css);
+    }
+    mod.importedModules.forEach(walk);
+  }
+
+  for (const file of entryFiles) {
+    const mods = vite.moduleGraph.getModulesByFile(file);
+    mods?.forEach(walk);
+  }
+  return styles.map(s => `<style>${s}</style>`).join('\n');
+}
 
 async function startDevServer() {
   const vite = await createServer({
@@ -37,12 +59,18 @@ async function startDevServer() {
         resolve(ROOT, 'packages/shell/src/entry-server.ts'),
       );
 
+      // Track loaded SSR entry files for style collection
+      const ssrEntryFiles: string[] = [
+        resolve(ROOT, 'packages/shell/src/entry-server.ts'),
+      ];
+
       // Fragment fetcher: uses Vite's ssrLoadModule to render fragments in-process
       const fragmentFetcher = async (fragmentId: string, request: Request, routeProps: Record<string, string> = {}) => {
         const entryPath = resolve(
           ROOT,
           `packages/fragment-${fragmentId}/src/entry-server.ts`,
         );
+        ssrEntryFiles.push(entryPath);
         try {
           // Build a request with route props as query params
           const fragUrl = new URL(request.url);
@@ -83,6 +111,12 @@ async function startDevServer() {
         /src="\/@fragment\/(.*?)\/(.*?)"/g,
         (_, id, path) => `src="/packages/fragment-${id}/src/${path}"`,
       );
+
+      // Inject SSR-collected styles to prevent FOUC
+      const ssrStyles = collectStyles(vite, ssrEntryFiles);
+      if (ssrStyles) {
+        html = html.replace('</head>', `${ssrStyles}\n</head>`);
+      }
 
       // Inject Vite's HMR client
       html = html.replace(
