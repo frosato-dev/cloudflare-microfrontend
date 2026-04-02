@@ -3,10 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --mode client",
-    "build:worker": "vite build --mode worker"
+    "build": "vite build && vite build --mode client"
   },
   "dependencies": {
-    "@meta-framework/shared": "workspace:*"
+    "@meta-framework/core": "workspace:*"
   }
 }

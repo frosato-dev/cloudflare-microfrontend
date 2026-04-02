@@ -1,9 +1,9 @@
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
+import { createFragmentWorker } from '@meta-framework/core/worker/fragment';
 import App from './App.vue';
-import type { FragmentResponse } from '@meta-framework/shared';
 
-export async function render(request?: Request): Promise<FragmentResponse> {
+export async function render(request?: Request) {
   const props: Record<string, string> = {};
   if (request) {
     const url = new URL(request.url);
@@ -16,15 +16,4 @@ export async function render(request?: Request): Promise<FragmentResponse> {
   return { html };
 }
 
-// Cloudflare Worker export
-export default {
-  async fetch(request: Request): Promise<Response> {
-    const result = await render(request);
-    return new Response(JSON.stringify(result), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'private, no-cache', // personalized fragment
-      },
-    });
-  },
-};
+export default createFragmentWorker(render, 'private, no-cache');

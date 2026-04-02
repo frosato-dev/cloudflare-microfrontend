@@ -4,7 +4,6 @@ import { resolve } from 'path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
-/** Walk Vite's module graph from entry points, collect CSS from vue style modules */
 function collectStyles(vite: ViteDevServer, entryFiles: string[]): string {
   const styles: string[] = [];
   const seen = new Set<string>();
@@ -33,17 +32,21 @@ async function startDevServer() {
     server: { port: 3000 },
     resolve: {
       alias: {
-        '@meta-framework/shared': resolve(ROOT, 'packages/shared/src/index.ts'),
+        '@meta-framework/core/hydration/shell': resolve(ROOT, 'packages/framework/src/hydration/shell.ts'),
+        '@meta-framework/core/hydration/fragment': resolve(ROOT, 'packages/framework/src/hydration/fragment.ts'),
+        '@meta-framework/core/worker/shell': resolve(ROOT, 'packages/framework/src/worker/shell.ts'),
+        '@meta-framework/core/worker/fragment': resolve(ROOT, 'packages/framework/src/worker/fragment.ts'),
+        '@meta-framework/core/vite/shell': resolve(ROOT, 'packages/framework/src/vite/shell.ts'),
+        '@meta-framework/core/vite/fragment': resolve(ROOT, 'packages/framework/src/vite/fragment.ts'),
+        '@meta-framework/core': resolve(ROOT, 'packages/framework/src/index.ts'),
       },
     },
     appType: 'custom',
   });
 
-  // SSR middleware: intercept all HTML requests, render via shell
   vite.middlewares.use(async (req, res, next) => {
     const url = req.url || '/';
 
-    // Skip Vite internal requests
     if (
       url.startsWith('/@') ||
       url.startsWith('/node_modules') ||
@@ -54,25 +57,28 @@ async function startDevServer() {
     }
 
     try {
-      // Import shell's entry-server via Vite's SSR module loader
-      const { handleRequest } = await vite.ssrLoadModule(
-        resolve(ROOT, 'packages/shell/src/entry-server.ts'),
+      // Load framework + shell modules via Vite SSR
+      const framework = await vite.ssrLoadModule(
+        resolve(ROOT, 'packages/framework/src/request-handler.ts'),
+      );
+      const routerMod = await vite.ssrLoadModule(
+        resolve(ROOT, 'packages/shell/src/router.ts'),
+      );
+      const layoutsMod = await vite.ssrLoadModule(
+        resolve(ROOT, 'packages/shell/src/layouts/index.ts'),
+      );
+      const middlewareMod = await vite.ssrLoadModule(
+        resolve(ROOT, 'packages/shell/src/middleware.ts'),
       );
 
-      // Track loaded SSR entry files for style collection
       const ssrEntryFiles: string[] = [
-        resolve(ROOT, 'packages/shell/src/entry-server.ts'),
+        resolve(ROOT, 'packages/shell/src/router.ts'),
       ];
 
-      // Fragment fetcher: uses Vite's ssrLoadModule to render fragments in-process
       const fragmentFetcher = async (fragmentId: string, request: Request, routeProps: Record<string, string> = {}) => {
-        const entryPath = resolve(
-          ROOT,
-          `packages/fragment-${fragmentId}/src/entry-server.ts`,
-        );
+        const entryPath = resolve(ROOT, `packages/fragment-${fragmentId}/src/entry-server.ts`);
         ssrEntryFiles.push(entryPath);
         try {
-          // Build a request with route props as query params
           const fragUrl = new URL(request.url);
           for (const [k, v] of Object.entries(routeProps)) {
             fragUrl.searchParams.set(k, v);
@@ -86,7 +92,6 @@ async function startDevServer() {
         }
       };
 
-      // Build a Request object from Node's IncomingMessage
       const origin = `http://localhost:3000`;
       const request = new Request(`${origin}${url}`, {
         method: req.method,
@@ -99,10 +104,19 @@ async function startDevServer() {
         ),
       });
 
-      const response = await handleRequest(request, fragmentFetcher, { isDev: true });
+      const response = await framework.handleRequest(
+        request,
+        fragmentFetcher,
+        {
+          routes: routerMod.routes,
+          layouts: layoutsMod.layouts,
+          middlewareRegistry: middlewareMod.middlewareRegistry,
+          streamLayoutFn: () => ({ before: '', after: '' }), // unused in dev
+        },
+        { isDev: true },
+      );
       let html = await response.text();
 
-      // Transform client script paths for Vite dev
       html = html.replace(
         /src="\/@shell\/(.*?)"/g,
         (_, path) => `src="/packages/shell/src/${path}"`,
@@ -112,21 +126,17 @@ async function startDevServer() {
         (_, id, path) => `src="/packages/fragment-${id}/src/${path}"`,
       );
 
-      // Inject SSR-collected styles to prevent FOUC
       const ssrStyles = collectStyles(vite, ssrEntryFiles);
       if (ssrStyles) {
         html = html.replace('</head>', `${ssrStyles}\n</head>`);
       }
 
-      // Inject Vite's HMR client
       html = html.replace(
         '</head>',
         `<script type="module" src="/@vite/client"></script></head>`,
       );
 
-      res.writeHead(response.status, {
-        'Content-Type': 'text/html',
-      });
+      res.writeHead(response.status, { 'Content-Type': 'text/html' });
       res.end(html);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);

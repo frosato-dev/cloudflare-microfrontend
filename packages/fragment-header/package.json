@@ -6,6 +6,6 @@
     "build": "vite build && vite build --mode client"
   },
   "dependencies": {
-    "@meta-framework/shared": "workspace:*"
+    "@meta-framework/core": "workspace:*"
   }
 }

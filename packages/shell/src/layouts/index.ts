@@ -1,19 +1,6 @@
-import type { FragmentResponse } from '@meta-framework/shared';
-import type { MatchedRoute } from '../router.js';
+import { wrapFragment, type LayoutContext } from '@meta-framework/core';
 
-interface LayoutContext {
-  pageHtml: string;
-  fragments: Record<string, FragmentResponse>;
-  route: MatchedRoute;
-  headLinks: string;
-  clientScripts: string;
-}
-
-function wrapFragment(id: string, html: string, props: Record<string, string> = {}): string {
-  return `<div data-fragment="${id}" data-props='${JSON.stringify(props)}'>${html}</div>`;
-}
-
-const layouts: Record<string, (ctx: LayoutContext) => string> = {
+export const layouts: Record<string, (ctx: LayoutContext) => string> = {
   default: (ctx) => {
     const headerHtml = ctx.fragments.header
       ? wrapFragment('header', ctx.fragments.header.html)
@@ -49,8 +36,3 @@ const layouts: Record<string, (ctx: LayoutContext) => string> = {
 </html>`;
   },
 };
-
-export function renderLayout(name: string, ctx: LayoutContext): string {
-  const layout = layouts[name] || layouts.default;
-  return layout(ctx);
-}

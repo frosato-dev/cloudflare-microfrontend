@@ -1,9 +1,4 @@
-import { createSSRApp } from 'vue';
+import { hydrateFragment } from '@meta-framework/core/hydration/fragment';
 import App from './App.vue';
 
-const container = document.querySelector('[data-fragment="header"]');
-if (container) {
-  const app = createSSRApp(App);
-  app.mount(container);
-  console.log('[fragment-header] hydrated');
-}
+hydrateFragment('header', App);

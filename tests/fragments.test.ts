@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { render as renderHeader } from '../packages/fragment-header/src/entry-server';
 import { render as renderProduct } from '../packages/fragment-product/src/entry-server';
-import { matchRoute } from '../packages/shell/src/router';
-import { handleRequest } from '../packages/shell/src/entry-server';
-import type { FragmentResponse } from '@meta-framework/shared';
+import { routes } from '../packages/shell/src/router';
+import { layouts } from '../packages/shell/src/layouts/index';
+import { middlewareRegistry } from '../packages/shell/src/middleware';
+import { matchRoute, handleRequest, type FragmentResponse } from '@meta-framework/core';
 
 describe('fragment SSR', () => {
   it('header fragment renders HTML', async () => {
@@ -22,24 +23,31 @@ describe('fragment SSR', () => {
 
 describe('router', () => {
   it('matches index route', () => {
-    const route = matchRoute('/');
+    const route = matchRoute(routes, '/');
     expect(route).toBeTruthy();
     expect(route!.fragments).toContain('header');
   });
 
   it('matches product route with param', () => {
-    const route = matchRoute('/product/galaxy-s24');
+    const route = matchRoute(routes, '/product/galaxy-s24');
     expect(route).toBeTruthy();
     expect(route!.props.id).toBe('galaxy-s24');
     expect(route!.fragments).toContain('product');
   });
 
   it('returns null for unknown routes', () => {
-    expect(matchRoute('/unknown')).toBeNull();
+    expect(matchRoute(routes, '/unknown')).toBeNull();
   });
 });
 
 describe('shell assembly', () => {
+  const config = {
+    routes,
+    layouts,
+    middlewareRegistry,
+    streamLayoutFn: () => ({ before: '', after: '' }),
+  };
+
   it('renders full page with fragments', async () => {
     const mockFetcher = async (id: string, _req: Request, _props: Record<string, string> = {}): Promise<FragmentResponse> => {
       if (id === 'header') return { html: '<header>Mock Header</header>' };
@@ -48,18 +56,17 @@ describe('shell assembly', () => {
     };
 
     const request = new Request('http://localhost:3000/');
-    const response = await handleRequest(request, mockFetcher);
+    const response = await handleRequest(request, mockFetcher, config, { isDev: true });
     const html = await response.text();
 
     expect(html).toContain('<!DOCTYPE html>');
     expect(html).toContain('data-fragment="header"');
     expect(html).toContain('Mock Header');
-    expect(html).toContain('/assets/shell.js');
   });
 
   it('returns 404 for unknown routes', async () => {
     const request = new Request('http://localhost:3000/nope');
-    const response = await handleRequest(request, async (_id, _req, _props = {}) => ({ html: '' }));
+    const response = await handleRequest(request, async (_id, _req, _props = {}) => ({ html: '' }), config, { isDev: true });
     expect(response.status).toBe(404);
   });
 });

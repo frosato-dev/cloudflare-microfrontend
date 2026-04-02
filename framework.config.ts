@@ -1,4 +1,4 @@
-import type { FrameworkConfig } from '@meta-framework/shared';
+import type { FrameworkConfig } from '@meta-framework/core';
 
 const config: FrameworkConfig = {
   fragments: {

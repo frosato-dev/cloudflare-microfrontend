@@ -11,7 +11,8 @@
     "lib": ["ES2022"],
     "skipLibCheck": true,
     "paths": {
-      "@meta-framework/shared": ["./packages/shared/src/index.ts"]
+      "@meta-framework/core": ["./packages/framework/src/index.ts"],
+      "@meta-framework/core/*": ["./packages/framework/src/*"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.vue", "scripts/**/*.ts", "framework.config.ts"]
