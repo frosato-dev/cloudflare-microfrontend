@@ -1,10 +1,10 @@
 {
-  "name": "meta-framework-shell",
+  "name": "meta-framework-front-office",
   "main": "dist/server/entry-server.js",
   "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "../../dist/static",
+    "directory": "../../../dist/static",
     "binding": "ASSETS"
   },
   // Service bindings to fragment workers

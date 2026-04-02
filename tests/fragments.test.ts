@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { render as renderHeader } from '../packages/fragment-header/src/entry-server';
-import { render as renderProduct } from '../packages/fragment-product/src/entry-server';
-import { routes } from '../packages/shell/src/router';
-import { layouts } from '../packages/shell/src/layouts/index';
-import { middlewareRegistry } from '../packages/shell/src/middleware';
+import { render as renderHeader } from '../packages/fragments/fragment-header/src/entry-server';
+import { render as renderProduct } from '../packages/fragments/fragment-product/src/entry-server';
+import { routes } from '../packages/apps/front-office/src/router';
+import { layouts } from '../packages/apps/front-office/src/layouts/index';
+import { middlewareRegistry } from '../packages/apps/front-office/src/middleware';
 import { matchRoute, handleRequest, type FragmentResponse } from '@meta-framework/core';
 
 describe('fragment SSR', () => {

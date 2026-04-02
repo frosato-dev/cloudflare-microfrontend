@@ -62,21 +62,21 @@ async function startDevServer() {
         resolve(ROOT, 'packages/framework/src/request-handler.ts'),
       );
       const routerMod = await vite.ssrLoadModule(
-        resolve(ROOT, 'packages/shell/src/router.ts'),
+        resolve(ROOT, 'packages/apps/front-office/src/router.ts'),
       );
       const layoutsMod = await vite.ssrLoadModule(
-        resolve(ROOT, 'packages/shell/src/layouts/index.ts'),
+        resolve(ROOT, 'packages/apps/front-office/src/layouts/index.ts'),
       );
       const middlewareMod = await vite.ssrLoadModule(
-        resolve(ROOT, 'packages/shell/src/middleware.ts'),
+        resolve(ROOT, 'packages/apps/front-office/src/middleware.ts'),
       );
 
       const ssrEntryFiles: string[] = [
-        resolve(ROOT, 'packages/shell/src/router.ts'),
+        resolve(ROOT, 'packages/apps/front-office/src/router.ts'),
       ];
 
       const fragmentFetcher = async (fragmentId: string, request: Request, routeProps: Record<string, string> = {}) => {
-        const entryPath = resolve(ROOT, `packages/fragment-${fragmentId}/src/entry-server.ts`);
+        const entryPath = resolve(ROOT, `packages/fragments/fragment-${fragmentId}/src/entry-server.ts`);
         ssrEntryFiles.push(entryPath);
         try {
           const fragUrl = new URL(request.url);
@@ -119,11 +119,11 @@ async function startDevServer() {
 
       html = html.replace(
         /src="\/@shell\/(.*?)"/g,
-        (_, path) => `src="/packages/shell/src/${path}"`,
+        (_, path) => `src="/packages/apps/front-office/src/${path}"`,
       );
       html = html.replace(
         /src="\/@fragment\/(.*?)\/(.*?)"/g,
-        (_, id, path) => `src="/packages/fragment-${id}/src/${path}"`,
+        (_, id, path) => `src="/packages/fragments/fragment-${id}/src/${path}"`,
       );
 
       const ssrStyles = collectStyles(vite, ssrEntryFiles);

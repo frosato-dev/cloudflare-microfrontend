@@ -9,9 +9,9 @@ collectAssets();
 execSync(
   [
     'npx wrangler dev',
-    '-c packages/shell/wrangler.jsonc',
-    '-c packages/fragment-header/wrangler.jsonc',
-    '-c packages/fragment-product/wrangler.jsonc',
+    '-c packages/apps/front-office/wrangler.jsonc',
+    '-c packages/fragments/fragment-header/wrangler.jsonc',
+    '-c packages/fragments/fragment-product/wrangler.jsonc',
   ].join(' '),
   { cwd: ROOT, stdio: 'inherit' },
 );

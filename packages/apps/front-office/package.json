@@ -1,5 +1,5 @@
 {
-  "name": "@meta-framework/shell",
+  "name": "@meta-framework/front-office",
   "private": true,
   "type": "module",
   "scripts": {

@@ -3,7 +3,11 @@ import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, writeFileSync, rea
 
 const ROOT = resolve(import.meta.dirname, '..');
 const STATIC_DIR = resolve(ROOT, 'dist/static');
-const PACKAGES = ['shell', 'fragment-header', 'fragment-product'];
+const PACKAGES = [
+  'apps/front-office',
+  'fragments/fragment-header',
+  'fragments/fragment-product',
+];
 
 export function collectAssets() {
   rmSync(STATIC_DIR, { recursive: true, force: true });
@@ -48,7 +52,7 @@ export function collectAssets() {
   writeFileSync(resolve(targetDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
 
   // Also write manifest into shell's dist/server so the worker can import it
-  const shellServerDir = resolve(ROOT, 'packages/shell/dist/server');
+  const shellServerDir = resolve(ROOT, 'packages/apps/front-office/dist/server');
   if (existsSync(shellServerDir)) {
     writeFileSync(resolve(shellServerDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
   }

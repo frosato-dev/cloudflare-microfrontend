@@ -8,9 +8,13 @@ export interface FragmentConfig {
   clientEntry: string;
 }
 
+export interface AppConfig {
+  src: string;
+}
+
 export interface FrameworkConfig {
   fragments: Record<string, FragmentConfig>;
-  shell: { src: string };
+  apps: Record<string, AppConfig>;
 }
 
 export interface FragmentResponse {

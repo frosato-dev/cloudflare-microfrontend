@@ -6,9 +6,15 @@ const ROOT = resolve(import.meta.dirname, '..');
 
 collectAssets();
 
-for (const worker of ['fragment-header', 'fragment-product', 'shell']) {
-  console.log(`\n  Deploying ${worker}...`);
-  execSync(`npx wrangler deploy -c packages/${worker}/wrangler.jsonc`, {
+const workers = [
+  'packages/fragments/fragment-header/wrangler.jsonc',
+  'packages/fragments/fragment-product/wrangler.jsonc',
+  'packages/apps/front-office/wrangler.jsonc',
+];
+
+for (const config of workers) {
+  console.log(`\n  Deploying ${config}...`);
+  execSync(`npx wrangler deploy -c ${config}`, {
     cwd: ROOT,
     stdio: 'inherit',
   });
