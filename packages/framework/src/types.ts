@@ -1,22 +1,5 @@
 import type { Component } from 'vue';
 
-export interface FragmentConfig {
-  src: string;
-  workerUrl: string;
-  cache: 'static' | 'personalized';
-  ssrEntry: string;
-  clientEntry: string;
-}
-
-export interface AppConfig {
-  src: string;
-}
-
-export interface FrameworkConfig {
-  fragments: Record<string, FragmentConfig>;
-  apps: Record<string, AppConfig>;
-}
-
 export interface FragmentResponse {
   html: string;
   css?: string;

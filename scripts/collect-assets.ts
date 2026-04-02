@@ -1,23 +1,21 @@
 import { resolve } from 'path';
 import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'fs';
+import { discoverWorkers } from '../packages/framework/src/discover.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const STATIC_DIR = resolve(ROOT, 'dist/static');
-const PACKAGES = [
-  'apps/front-office',
-  'fragments/fragment-header',
-  'fragments/fragment-product',
-];
 
 export function collectAssets() {
+  const workers = discoverWorkers(ROOT);
+
   rmSync(STATIC_DIR, { recursive: true, force: true });
   const targetDir = resolve(STATIC_DIR, 'assets');
   mkdirSync(targetDir, { recursive: true });
 
   const mergedManifest: Record<string, string> = {};
 
-  for (const pkg of PACKAGES) {
-    const clientDir = resolve(ROOT, `packages/${pkg}/dist/client`);
+  for (const worker of workers) {
+    const clientDir = resolve(worker.dir, 'dist/client');
     if (!existsSync(clientDir)) continue;
 
     // Read Vite manifest if present
@@ -51,10 +49,13 @@ export function collectAssets() {
   // Write merged manifest
   writeFileSync(resolve(targetDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
 
-  // Also write manifest into shell's dist/server so the worker can import it
-  const shellServerDir = resolve(ROOT, 'packages/apps/front-office/dist/server');
-  if (existsSync(shellServerDir)) {
-    writeFileSync(resolve(shellServerDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
+  // Also write manifest into each app's dist/server so the worker can import it
+  for (const worker of workers) {
+    if (worker.type !== 'app') continue;
+    const serverDir = resolve(worker.dir, 'dist/server');
+    if (existsSync(serverDir)) {
+      writeFileSync(resolve(serverDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
+    }
   }
 
   console.log('  Assets collected. Manifest:', mergedManifest);

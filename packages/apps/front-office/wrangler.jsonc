@@ -1,15 +1,22 @@
 {
-  "name": "meta-framework-front-office",
+  "name": "front-office",
   "main": "dist/server/entry-server.js",
   "compatibility_date": "2024-12-01",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "assets": {
     "directory": "../../../dist/static",
     "binding": "ASSETS"
   },
-  // Service bindings to fragment workers
   "services": [
-    { "binding": "FRAGMENT_HEADER", "service": "meta-framework-fragment-header" },
-    { "binding": "FRAGMENT_PRODUCT", "service": "meta-framework-fragment-product" }
+    {
+      "binding": "FRAGMENT_HEADER",
+      "service": "fragment-header"
+    },
+    {
+      "binding": "FRAGMENT_PRODUCT",
+      "service": "fragment-product"
+    }
   ]
 }

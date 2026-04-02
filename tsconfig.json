@@ -15,5 +15,5 @@
       "@meta-framework/core/*": ["./packages/framework/src/*"]
     }
   },
-  "include": ["packages/framework/src/**/*.ts", "packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts", "framework.config.ts"]
+  "include": ["packages/framework/src/**/*.ts", "packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts"]
 }

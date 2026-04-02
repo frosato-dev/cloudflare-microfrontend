@@ -10,7 +10,8 @@
     "./worker/shell": "./src/worker/shell.ts",
     "./worker/fragment": "./src/worker/fragment.ts",
     "./hydration/shell": "./src/hydration/shell.ts",
-    "./hydration/fragment": "./src/hydration/fragment.ts"
+    "./hydration/fragment": "./src/hydration/fragment.ts",
+    "./discover": "./src/discover.ts"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.1.0",

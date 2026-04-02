@@ -1,3 +1,3 @@
 import { defineFragmentConfig } from '@meta-framework/core/vite/fragment';
 
-export default defineFragmentConfig('fragment-header');
+export default defineFragmentConfig();
