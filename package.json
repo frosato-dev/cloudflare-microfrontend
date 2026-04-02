@@ -6,6 +6,8 @@
     "dev": "node --import tsx scripts/dev-server.ts",
     "build": "pnpm -r run build",
     "preview": "pnpm run build && node --import tsx scripts/preview.ts",
+    "preview:front-office": "pnpm run build && node --import tsx scripts/preview.ts --app front-office",
+    "preview:back-office": "pnpm run build && node --import tsx scripts/preview.ts --app back-office",
     "test": "vitest run",
     "deploy": "pnpm run build && node --import tsx scripts/deploy.ts"
   },

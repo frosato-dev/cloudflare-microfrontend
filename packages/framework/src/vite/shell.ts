@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 
-export function defineShellConfig(name: string) {
+export function defineShellConfig() {
   return defineConfig(({ mode }) => {
     if (mode === 'client') {
       return {
@@ -13,8 +13,8 @@ export function defineShellConfig(name: string) {
           rollupOptions: {
             input: resolve(process.cwd(), 'src/entry-client.ts'),
             output: {
-              entryFileNames: `${name}.[hash].js`,
-              assetFileNames: `${name}.[hash].[ext]`,
+              entryFileNames: `shell.[hash].js`,
+              assetFileNames: `shell.[hash].[ext]`,
               format: 'es' as const,
               chunkFileNames: '[name].[hash].js',
               manualChunks: { vue: ['vue'] },
