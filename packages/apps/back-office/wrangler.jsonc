@@ -1,0 +1,22 @@
+{
+  "name": "back-office",
+  "main": "dist/server/entry-server.js",
+  "compatibility_date": "2024-12-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "assets": {
+    "directory": "../../../dist/static",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "FRAGMENT_HEADER",
+      "service": "fragment-header"
+    },
+    {
+      "binding": "FRAGMENT_PRODUCT",
+      "service": "fragment-product"
+    }
+  ]
+}
