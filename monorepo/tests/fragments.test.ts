@@ -5,7 +5,7 @@ import { render as renderProduct } from '../packages/fragments/fragment-product/
 import { routes } from '../packages/apps/front-office/src/router';
 import loggerMw from '../packages/apps/front-office/src/middleware/logger';
 
-import { matchRoute, toRouteEntries, handleRequest, type FragmentResponse } from '@meta-framework/core';
+import { matchRoute, toRouteEntries, handleRequest, type FragmentResponse } from 'framework';
 
 const routeEntries = toRouteEntries(routes);
 

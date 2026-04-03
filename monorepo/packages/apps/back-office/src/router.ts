@@ -1,4 +1,4 @@
-import type { AppRoute } from '@meta-framework/core';
+import type { AppRoute } from 'framework';
 import IndexPage from './pages/index.vue';
 
 export const routes: AppRoute[] = [

@@ -9,11 +9,7 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "lib": ["ES2022"],
-    "skipLibCheck": true,
-    "paths": {
-      "@meta-framework/core": ["../framework/src/index.ts"],
-      "@meta-framework/core/*": ["../framework/src/*"]
-    }
+    "skipLibCheck": true
   },
-  "include": ["../framework/src/**/*.ts", "packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts"]
+  "include": ["packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts"]
 }

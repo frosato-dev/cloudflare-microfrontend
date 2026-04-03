@@ -1,4 +1,4 @@
-import { createShellWorker } from '@meta-framework/core/worker/shell';
+import { createShellWorker } from 'framework/worker';
 import { routes } from './router.js';
 
 export default createShellWorker({

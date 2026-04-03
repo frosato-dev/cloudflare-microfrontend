@@ -6,7 +6,7 @@ Back Market meta-framework — Vue micro-frontends on Cloudflare Workers
 
 ## Structure
 
-- `framework/` — independent `@meta-framework/core` npm package
+- `framework/` — independent `framework` npm package
 - `monorepo/` — example monorepo using the framework (apps + fragments)
   - `monorepo/packages/apps/` — shell workers (front-office, back-office)
   - `monorepo/packages/fragments/` — micro-frontend fragments

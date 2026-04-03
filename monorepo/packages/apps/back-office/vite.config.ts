@@ -1,3 +1,3 @@
-import { defineShellConfig } from '@meta-framework/core/vite/shell';
+import { defineShellConfig } from 'framework/vite';
 
 export default defineShellConfig();

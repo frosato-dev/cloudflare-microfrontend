@@ -1,16 +1,13 @@
 {
-  "name": "@meta-framework/core",
+  "name": "framework",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./vite/shell": "./src/vite/shell.ts",
-    "./vite/fragment": "./src/vite/fragment.ts",
-    "./worker/shell": "./src/worker/shell.ts",
-    "./worker/fragment": "./src/worker/fragment.ts",
-    "./hydration/shell": "./src/hydration/shell.ts",
-    "./hydration/fragment": "./src/hydration/fragment.ts",
+    "./vite": "./src/vite/index.ts",
+    "./worker": "./src/worker/index.ts",
+    "./hydration": "./src/hydration/index.ts",
     "./discover": "./src/discover.ts"
   },
   "dependencies": {

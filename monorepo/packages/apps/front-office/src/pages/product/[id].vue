@@ -7,7 +7,7 @@
 </template>
 
 <script setup lang="ts">
-import { Fragment } from '@meta-framework/core';
+import { Fragment } from 'framework';
 
 const { id } = defineProps<{ id: string }>();
 </script>

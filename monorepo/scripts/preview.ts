@@ -1,7 +1,7 @@
 import { execSync } from 'child_process';
 import { resolve } from 'path';
 import { collectAssets } from './collect-assets.js';
-import { discoverWorkers, generateAppWranglerConfigs } from '../../framework/src/discover.js';
+import { discoverWorkers, generateAppWranglerConfigs } from 'framework/discover';
 
 const ROOT = resolve(import.meta.dirname, '..');
 

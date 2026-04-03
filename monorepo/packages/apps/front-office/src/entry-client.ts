@@ -1,4 +1,4 @@
-import { hydrateShell } from '@meta-framework/core/hydration/shell';
+import { hydrateShell } from 'framework/hydration';
 import { routes } from './router.js';
 
 hydrateShell({

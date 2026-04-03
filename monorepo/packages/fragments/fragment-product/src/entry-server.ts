@@ -1,6 +1,6 @@
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
-import { createFragmentWorker } from '@meta-framework/core/worker/fragment';
+import { createFragmentWorker } from 'framework/worker';
 import App from './App.vue';
 
 export async function render(request?: Request) {

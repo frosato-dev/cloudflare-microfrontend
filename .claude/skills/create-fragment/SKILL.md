@@ -24,7 +24,7 @@ Scaffold a new Vue micro-frontend fragment. The user provides the fragment name 
     "build": "vite build && vite build --mode client"
   },
   "dependencies": {
-    "@meta-framework/core": "workspace:*"
+    "framework": "link:../../../../framework"
   }
 }
 ```
@@ -41,7 +41,7 @@ Scaffold a new Vue micro-frontend fragment. The user provides the fragment name 
 
 ### `vite.config.ts`
 ```ts
-import { defineFragmentConfig } from '@meta-framework/core/vite/fragment';
+import { defineFragmentConfig } from 'framework/vite';
 
 export default defineFragmentConfig();
 ```
@@ -50,7 +50,7 @@ export default defineFragmentConfig();
 ```ts
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
-import { createFragmentWorker } from '@meta-framework/core/worker/fragment';
+import { createFragmentWorker } from 'framework/worker';
 import App from './App.vue';
 
 export async function render(request?: Request) {

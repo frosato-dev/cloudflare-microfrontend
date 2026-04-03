@@ -1,4 +1,4 @@
-import type { AppRoute } from '@meta-framework/core';
+import type { AppRoute } from 'framework';
 import IndexPage from './pages/index.vue';
 import ProductPage from './pages/product/[id].vue';
 

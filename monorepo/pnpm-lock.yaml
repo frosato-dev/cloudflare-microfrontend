@@ -21,6 +21,9 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^5.1.0
         version: 5.2.4(vite@5.4.21)(vue@3.5.31(typescript@5.9.3))
+      framework:
+        specifier: link:../framework
+        version: link:../framework
       tsx:
         specifier: ^4.19.0
         version: 4.21.0
@@ -37,43 +40,28 @@ importers:
         specifier: ^4.78.0
         version: 4.78.0
 
-  ../framework:
-    dependencies:
-      '@vitejs/plugin-vue':
-        specifier: ^5.1.0
-        version: 5.2.4(vite@5.4.21)(vue@3.5.31(typescript@5.9.3))
-      vite:
-        specifier: ^5.4.0
-        version: 5.4.21
-      vue:
-        specifier: ^3.5.0
-        version: 3.5.31(typescript@5.9.3)
-      vue-router:
-        specifier: ^4.4.0
-        version: 4.6.4(vue@3.5.31(typescript@5.9.3))
-
   packages/apps/back-office:
     dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
+      framework:
+        specifier: link:../../../../framework
         version: link:../../../../framework
 
   packages/apps/front-office:
     dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
+      framework:
+        specifier: link:../../../../framework
         version: link:../../../../framework
 
   packages/fragments/fragment-header:
     dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
+      framework:
+        specifier: link:../../../../framework
         version: link:../../../../framework
 
   packages/fragments/fragment-product:
     dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
+      framework:
+        specifier: link:../../../../framework
         version: link:../../../../framework
 
 packages:

@@ -20,7 +20,7 @@ function fragmentEntryClientPlugin(fragmentId: string, srcDir: string): Plugin {
       if (id !== RESOLVED_VIRTUAL) return;
       const appPath = resolve(srcDir, 'App.vue').replace(/\\/g, '/');
       return [
-        `import { hydrateFragment } from '@meta-framework/core/hydration/fragment';`,
+        `import { hydrateFragment } from 'framework/hydration';`,
         `import App from '${appPath}';`,
         `hydrateFragment('${fragmentId}', App);`,
       ].join('\n');

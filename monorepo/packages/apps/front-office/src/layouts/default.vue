@@ -6,5 +6,5 @@
 </template>
 
 <script setup lang="ts">
-import { Fragment } from '@meta-framework/core';
+import { Fragment } from 'framework';
 </script>
