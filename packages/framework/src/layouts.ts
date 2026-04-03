@@ -5,8 +5,8 @@ export function buildLayoutRegistry(
 ): Record<string, Component> {
   const registry: Record<string, Component> = {};
   for (const [path, mod] of Object.entries(modules)) {
-    const match = path.match(/\/([^/]+?)(?:Layout)?\.vue$/);
-    if (match) registry[match[1].toLowerCase()] = mod.default;
+    const match = path.match(/\/([^/]+)\.vue$/);
+    if (match) registry[match[1]] = mod.default;
   }
   return registry;
 }
