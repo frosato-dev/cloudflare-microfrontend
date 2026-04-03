@@ -1,20 +1,26 @@
 import { handleRequest } from '../request-handler.js';
+import { toRouteEntries } from '../router.js';
+import { buildMiddlewareRegistry } from '../middleware.js';
+import { buildLayoutRegistry } from '../layouts.js';
 import type { Component } from 'vue';
 import type {
+  AppRoute,
   AssetManifest,
   FragmentFetcher,
   Middleware,
-  RouteEntry,
 } from '../types.js';
 
 export interface ShellWorkerConfig {
-  routes: RouteEntry[];
-  middlewareRegistry: Record<string, Middleware>;
-  layouts: Record<string, Component>;
+  routes: AppRoute[];
+  middleware: Record<string, { default: Middleware }>;
+  layouts: Record<string, { default: Component }>;
   document: { title: string; baseStyles?: string };
 }
 
 export function createShellWorker(config: ShellWorkerConfig) {
+  const routeEntries = toRouteEntries(config.routes);
+  const middlewareRegistry = buildMiddlewareRegistry(config.middleware);
+  const layoutRegistry = buildLayoutRegistry(config.layouts);
   let manifest: AssetManifest | undefined;
 
   return {
@@ -39,7 +45,13 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return res.json();
       };
 
-      return handleRequest(request, workerFetcher, { ...config, manifest });
+      return handleRequest(request, workerFetcher, {
+        routes: routeEntries,
+        middlewareRegistry,
+        layouts: layoutRegistry,
+        document: config.document,
+        manifest,
+      });
     },
   };
 }

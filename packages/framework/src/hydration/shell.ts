@@ -1,9 +1,17 @@
 import { createSSRApp, h } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
+import { toClientRoutes } from '../router.js';
+import { buildLayoutRegistry } from '../layouts.js';
 import type { Component } from 'vue';
-import type { RouteRecordRaw } from 'vue-router';
+import type { AppRoute } from '../types.js';
 
-export function hydrateShell(clientRoutes: RouteRecordRaw[], layouts: Record<string, Component>) {
+export function hydrateShell(config: {
+  routes: AppRoute[];
+  layouts: Record<string, { default: Component }>;
+}) {
+  const clientRoutes = toClientRoutes(config.routes);
+  const layouts = buildLayoutRegistry(config.layouts);
+
   const router = createRouter({
     history: createWebHistory(),
     routes: clientRoutes,

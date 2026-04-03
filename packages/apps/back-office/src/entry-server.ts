@@ -1,15 +1,9 @@
 import { createShellWorker } from '@meta-framework/core/worker/shell';
-import { toRouteEntries, buildMiddlewareRegistry } from '@meta-framework/core';
 import { routes } from './router.js';
-import { layouts } from './layouts.js';
-
-const middlewareRegistry = buildMiddlewareRegistry(
-  import.meta.glob('./middleware/*.ts', { eager: true }) as any,
-);
 
 export default createShellWorker({
-  routes: toRouteEntries(routes),
-  middlewareRegistry,
-  layouts,
+  routes,
+  middleware: import.meta.glob('./middleware/*.ts', { eager: true }) as any,
+  layouts: import.meta.glob('./layouts/*.vue', { eager: true }) as any,
   document: { title: 'Back Office' },
 });

@@ -11,13 +11,13 @@ export type {
 } from './types.js';
 
 // Router
-export { matchRoute, toRouteEntries, toClientRoutes } from './router.js';
+export { matchRoute, toRouteEntries } from './router.js';
 
 // Middleware
-export { runMiddleware, buildMiddlewareRegistry } from './middleware.js';
+export { runMiddleware } from './middleware.js';
 
 // Layouts
-export { wrapFragment, streamResponse, buildLayoutRegistry } from './layouts.js';
+export { wrapFragment, streamResponse } from './layouts.js';
 
 // Request handler
 export { handleRequest, buildClientTags } from './request-handler.js';

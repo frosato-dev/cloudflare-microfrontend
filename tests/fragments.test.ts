@@ -3,12 +3,8 @@ import { defineComponent, h } from 'vue';
 import { render as renderHeader } from '../packages/fragments/fragment-header/src/entry-server';
 import { render as renderProduct } from '../packages/fragments/fragment-product/src/entry-server';
 import { routes } from '../packages/apps/front-office/src/router';
-import { buildMiddlewareRegistry } from '@meta-framework/core';
 import loggerMw from '../packages/apps/front-office/src/middleware/logger';
 
-const middlewareRegistry = buildMiddlewareRegistry({
-  './middleware/logger.ts': { default: loggerMw },
-});
 import { matchRoute, toRouteEntries, handleRequest, type FragmentResponse } from '@meta-framework/core';
 
 const routeEntries = toRouteEntries(routes);
@@ -58,7 +54,7 @@ describe('router', () => {
 describe('shell assembly', () => {
   const config = {
     routes: routeEntries,
-    middlewareRegistry,
+    middlewareRegistry: { logger: loggerMw },
     layouts: { default: TestLayout },
     document: { title: 'Test' },
   };

@@ -66,22 +66,11 @@ export default defineShellConfig('shell');
 
 ### `src/router.ts`
 ```ts
-import type { RouteRecordRaw } from 'vue-router';
-import type { RouteEntry } from '@meta-framework/core';
+import type { AppRoute } from '@meta-framework/core';
 import IndexPage from './pages/index.vue';
 
-export const routes: RouteEntry[] = [
-  {
-    pattern: /^\/$/,
-    paramNames: [],
-    component: IndexPage,
-    layout: 'default',
-    middleware: [],
-  },
-];
-
-export const clientRoutes: RouteRecordRaw[] = [
-  { path: '/', component: IndexPage },
+export const routes: AppRoute[] = [
+  { path: '/', component: IndexPage, layout: 'default', middleware: [] },
 ];
 ```
 
@@ -117,30 +106,15 @@ const logger: Middleware = (request) => {
 export default logger;
 ```
 
-### `src/layouts.ts`
-```ts
-import { buildLayoutRegistry } from '@meta-framework/core';
-
-export const layouts = buildLayoutRegistry(
-  import.meta.glob('./layouts/*.vue', { eager: true }) as any,
-);
-```
-
 ### `src/entry-server.ts`
 ```ts
 import { createShellWorker } from '@meta-framework/core/worker/shell';
-import { buildMiddlewareRegistry } from '@meta-framework/core';
 import { routes } from './router.js';
-import { layouts } from './layouts.js';
-
-const middlewareRegistry = buildMiddlewareRegistry(
-  import.meta.glob('./middleware/*.ts', { eager: true }) as any,
-);
 
 export default createShellWorker({
   routes,
-  middlewareRegistry,
-  layouts,
+  middleware: import.meta.glob('./middleware/*.ts', { eager: true }) as any,
+  layouts: import.meta.glob('./layouts/*.vue', { eager: true }) as any,
   document: { title: '{Name}' },
 });
 ```
@@ -148,10 +122,12 @@ export default createShellWorker({
 ### `src/entry-client.ts`
 ```ts
 import { hydrateShell } from '@meta-framework/core/hydration/shell';
-import { clientRoutes } from './router.js';
-import { layouts } from './layouts.js';
+import { routes } from './router.js';
 
-hydrateShell(clientRoutes, layouts);
+hydrateShell({
+  routes,
+  layouts: import.meta.glob('./layouts/*.vue', { eager: true }) as any,
+});
 ```
 
 Replace `{name}` with the actual app name and `{Name}` with the capitalized version.
