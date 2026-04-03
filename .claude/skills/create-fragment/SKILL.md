@@ -46,20 +46,13 @@ import { defineFragmentConfig } from 'framework/vite';
 export default defineFragmentConfig();
 ```
 
-### `src/entry-server.ts`
+### `fragment.config.ts`
 ```ts
-import { createSSRApp } from 'vue';
-import { renderToString } from 'vue/server-renderer';
-import { createFragmentWorker } from 'framework/worker';
-import App from './App.vue';
+import { defineFragmentConfig } from 'framework/config'
 
-export async function render(request?: Request) {
-  const app = createSSRApp(App);
-  const html = await renderToString(app);
-  return { html };
-}
-
-export default createFragmentWorker(render, 'public, max-age=3600');
+export default defineFragmentConfig({
+  cache: 'public, max-age=3600',
+})
 ```
 
 ### `src/App.vue`
@@ -84,10 +77,12 @@ Replace `{name}` with the actual fragment name and `{Name}` with the capitalized
 
 3. **Run `pnpm install`** from the `monorepo/` directory to register the new workspace package. Use the volta workaround if pnpm fails: `~/.volta/tools/image/node/22.22.2/bin/npx pnpm install`.
 
+Note: `entry-server.ts` is generated automatically by the framework via a virtual module based on `fragment.config.ts`. Do NOT create it manually.
+
 4. **Remind the user** they need to:
    - Add the fragment to a route's `fragments` array in the app's `router.ts`
    - Add rendering logic for it in the app's `layouts/index.ts`
    - Customize `src/App.vue` with actual UI
-   - If the fragment needs props from the route, update `entry-server.ts` to parse request params (see `fragment-product` for an example)
+   - If the fragment needs props from the request, add a `props(request)` function in `fragment.config.ts` (see `fragment-product` for an example)
 
 No other files need editing — scripts and wrangler bindings are auto-discovered.

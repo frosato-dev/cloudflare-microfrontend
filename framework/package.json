@@ -11,6 +11,7 @@
     "./vite": "./src/vite/index.ts",
     "./worker": "./src/worker/index.ts",
     "./hydration": "./src/hydration/index.ts",
+    "./config": "./src/config.ts",
     "./discover": "./src/discover.ts"
   },
   "dependencies": {
