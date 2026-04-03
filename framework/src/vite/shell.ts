@@ -1,14 +1,13 @@
 import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { createHash } from 'crypto';
 
 const VIRTUAL_SERVER = 'virtual:shell-entry-server';
 const RESOLVED_SERVER = '\0' + VIRTUAL_SERVER;
 const VIRTUAL_CLIENT = 'virtual:shell-entry-client';
 const RESOLVED_CLIENT = '\0' + VIRTUAL_CLIENT;
-const VIRTUAL_VUE = 'virtual:vue-exports';
-const RESOLVED_VUE = '\0' + VIRTUAL_VUE;
 
 /** List files matching a glob-like pattern in a directory */
 function listFiles(dir: string, ext: string): string[] {
@@ -19,21 +18,25 @@ function listFiles(dir: string, ext: string): string[] {
 }
 
 /**
- * Virtual module that re-exports every Vue binding by name.
- * Used as a separate entry so that `preserveEntrySignatures` keeps
- * all exports — including aliases like createElementVNode — intact.
+ * Emits Vue's pre-built browser bundle as a hashed asset.
+ * Eliminates the re-export shim + runtime-dom waterfall.
  */
-function vueExportsPlugin(): Plugin {
+function vueBrowserBundlePlugin(): Plugin {
+  let vuePath: string;
   return {
-    name: 'meta-framework:vue-exports',
-    resolveId(id) {
-      if (id === VIRTUAL_VUE) return RESOLVED_VUE;
+    name: 'meta-framework:vue-browser-bundle',
+    async buildStart() {
+      const resolved = import.meta.resolve?.('vue/dist/vue.runtime.esm-browser.prod.js');
+      vuePath = resolved ? new URL(resolved).pathname : resolve('node_modules/vue/dist/vue.runtime.esm-browser.prod.js');
     },
-    async load(id) {
-      if (id !== RESOLVED_VUE) return;
-      const vue = await import('vue');
-      const names = Object.keys(vue).filter((n) => n !== 'default' && n !== '__esModule');
-      return names.map((n) => `export { ${n} } from 'vue';`).join('\n');
+    generateBundle() {
+      const source = readFileSync(vuePath);
+      const hash = createHash('sha256').update(source).digest('hex').slice(0, 8);
+      this.emitFile({
+        type: 'asset',
+        fileName: `vue.${hash}.js`,
+        source,
+      });
     },
   };
 }
@@ -118,15 +121,15 @@ export function defineShellConfig() {
         : resolve(cwd, 'src/entry-client.ts');
 
       return {
-        plugins: [vue(), vueExportsPlugin(), ...(hasConfig ? [shellEntryClientPlugin(cwd)] : [])],
+        plugins: [vue(), vueBrowserBundlePlugin(), ...(hasConfig ? [shellEntryClientPlugin(cwd)] : [])],
         build: {
           outDir: 'dist/client',
           manifest: true,
           rollupOptions: {
-            input: { shell: clientInput, vue: VIRTUAL_VUE },
-            preserveEntrySignatures: 'exports-only',
+            input: clientInput,
+            external: ['vue'],
             output: {
-              entryFileNames: `[name].[hash].js`,
+              entryFileNames: `shell.[hash].js`,
               assetFileNames: `shell.[hash].[ext]`,
               format: 'es' as const,
               chunkFileNames: '[name].[hash].js',

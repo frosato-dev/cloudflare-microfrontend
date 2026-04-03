@@ -44,6 +44,11 @@ export function collectAssets(root: string) {
     }
   }
 
+  // Detect emitted vue browser bundle (not in Vite manifest since it's a raw asset)
+  const allFiles = readdirSync(targetDir);
+  const vueFile = allFiles.find(f => /^vue\.[a-zA-Z0-9_-]{8}\.js$/.test(f));
+  if (vueFile) mergedManifest['vue.js'] = vueFile;
+
   // Write merged manifest
   writeFileSync(resolve(targetDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
 
