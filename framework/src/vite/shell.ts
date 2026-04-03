@@ -112,21 +112,16 @@ function shellEntryClientPlugin(cwd: string): Plugin {
 
 export function defineShellConfig() {
   const cwd = process.cwd();
-  const hasConfig = existsSync(resolve(cwd, 'application.config.ts'));
 
   return defineConfig(({ mode }) => {
     if (mode === 'client') {
-      const clientInput = hasConfig
-        ? VIRTUAL_CLIENT
-        : resolve(cwd, 'src/entry-client.ts');
-
       return {
-        plugins: [vue(), vueBrowserBundlePlugin(), ...(hasConfig ? [shellEntryClientPlugin(cwd)] : [])],
+        plugins: [vue(), vueBrowserBundlePlugin(), shellEntryClientPlugin(cwd)],
         build: {
           outDir: 'dist/client',
           manifest: true,
           rollupOptions: {
-            input: clientInput,
+            input: VIRTUAL_CLIENT,
             external: ['vue'],
             output: {
               entryFileNames: `shell.[hash].js`,
@@ -139,27 +134,15 @@ export function defineShellConfig() {
       };
     }
 
-    if (hasConfig) {
-      return {
-        plugins: [vue(), shellEntryServerPlugin(cwd)],
-        build: {
-          ssr: true,
-          outDir: 'dist/server',
-          rollupOptions: {
-            input: VIRTUAL_SERVER,
-            output: { entryFileNames: 'entry-server.js', format: 'es' as const },
-          },
-        },
-        ssr: { noExternal: true, target: 'webworker' as const },
-      };
-    }
-
     return {
-      plugins: [vue()],
+      plugins: [vue(), shellEntryServerPlugin(cwd)],
       build: {
-        ssr: 'src/entry-server.ts',
+        ssr: true,
         outDir: 'dist/server',
-        rollupOptions: { output: { format: 'es' as const } },
+        rollupOptions: {
+          input: VIRTUAL_SERVER,
+          output: { entryFileNames: 'entry-server.js', format: 'es' as const },
+        },
       },
       ssr: { noExternal: true, target: 'webworker' as const },
     };
