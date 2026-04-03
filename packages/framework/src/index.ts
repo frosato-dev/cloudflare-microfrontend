@@ -1,25 +1,26 @@
 // Types
 export type {
+  AppRoute,
   FragmentResponse,
   RouteDefinition,
-  LayoutSlots,
   Middleware,
   MatchedRoute,
   RouteEntry,
-  LayoutContext,
-  StreamLayoutContext,
   FragmentFetcher,
   AssetManifest,
 } from './types.js';
 
 // Router
-export { matchRoute } from './router.js';
+export { matchRoute, toRouteEntries, toClientRoutes } from './router.js';
 
 // Middleware
-export { runMiddleware } from './middleware.js';
+export { runMiddleware, buildMiddlewareRegistry } from './middleware.js';
 
 // Layouts
-export { wrapFragment, renderLayout, streamLayout } from './layouts.js';
+export { wrapFragment, streamResponse, buildLayoutRegistry } from './layouts.js';
 
 // Request handler
 export { handleRequest, buildClientTags } from './request-handler.js';
+
+// Components
+export { default as Fragment } from './components/Fragment.vue';

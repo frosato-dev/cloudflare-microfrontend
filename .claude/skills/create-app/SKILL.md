@@ -52,6 +52,18 @@ import { defineShellConfig } from '@meta-framework/core/vite/shell';
 export default defineShellConfig('shell');
 ```
 
+### `src/layouts/DefaultLayout.vue`
+```vue
+<template>
+  <main>
+    <slot />
+  </main>
+</template>
+
+<script setup lang="ts">
+</script>
+```
+
 ### `src/router.ts`
 ```ts
 import type { RouteRecordRaw } from 'vue-router';
@@ -64,7 +76,6 @@ export const routes: RouteEntry[] = [
     paramNames: [],
     component: IndexPage,
     layout: 'default',
-    fragments: [],
     middleware: [],
   },
 ];
@@ -95,93 +106,42 @@ export const clientRoutes: RouteRecordRaw[] = [
 </style>
 ```
 
-### `src/layouts/index.ts`
-```ts
-import { wrapFragment, type LayoutContext } from '@meta-framework/core';
-
-export const layouts: Record<string, (ctx: LayoutContext) => string> = {
-  default: (ctx) => {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{Name}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; }
-  </style>
-  ${ctx.headLinks}
-</head>
-<body>
-  <div id="app">
-    <main>
-      <div data-page>${ctx.pageHtml}</div>
-    </main>
-  </div>
-  ${ctx.clientScripts}
-</body>
-</html>`;
-  },
-};
-```
-
-### `src/middleware.ts`
+### `src/middleware/logger.ts`
 ```ts
 import type { Middleware } from '@meta-framework/core';
 
-export const middlewareRegistry: Record<string, Middleware> = {
-  logger: (request: Request) => {
-    console.log(`[middleware] ${request.method} ${new URL(request.url).pathname}`);
-  },
+const logger: Middleware = (request) => {
+  console.log(`[middleware] ${request.method} ${new URL(request.url).pathname}`);
 };
+
+export default logger;
+```
+
+### `src/layouts.ts`
+```ts
+import { buildLayoutRegistry } from '@meta-framework/core';
+
+export const layouts = buildLayoutRegistry(
+  import.meta.glob('./layouts/*.vue', { eager: true }) as any,
+);
 ```
 
 ### `src/entry-server.ts`
 ```ts
 import { createShellWorker } from '@meta-framework/core/worker/shell';
+import { buildMiddlewareRegistry } from '@meta-framework/core';
 import { routes } from './router.js';
-import { middlewareRegistry } from './middleware.js';
-import { layouts } from './layouts/index.js';
+import { layouts } from './layouts.js';
 
-const streamLayoutFn = (ctx: {
-  headerHtml: string;
-  otherFragments: string;
-  pageHtml: string;
-  headLinks: string;
-  clientScripts: string;
-  inlineStyles: string;
-}) => ({
-  before: `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{Name}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; }
-  </style>
-  ${ctx.headLinks}
-</head>
-<body>
-  <div id="app">
-    ${ctx.headerHtml}
-    <main>
-      <div data-page>${ctx.pageHtml}</div>
-      ${ctx.otherFragments}
-    </main>
-  </div>
-  ${ctx.clientScripts}
-`,
-  after: `</body>\n</html>`,
-});
+const middlewareRegistry = buildMiddlewareRegistry(
+  import.meta.glob('./middleware/*.ts', { eager: true }) as any,
+);
 
 export default createShellWorker({
   routes,
-  layouts,
   middlewareRegistry,
-  streamLayoutFn,
+  layouts,
+  document: { title: '{Name}' },
 });
 ```
 
@@ -189,8 +149,9 @@ export default createShellWorker({
 ```ts
 import { hydrateShell } from '@meta-framework/core/hydration/shell';
 import { clientRoutes } from './router.js';
+import { layouts } from './layouts.js';
 
-hydrateShell(clientRoutes);
+hydrateShell(clientRoutes, layouts);
 ```
 
 Replace `{name}` with the actual app name and `{Name}` with the capitalized version.
@@ -199,6 +160,5 @@ Replace `{name}` with the actual app name and `{Name}` with the capitalized vers
 
 4. **Remind the user** they need to:
    - Add pages under `src/pages/`
-   - Add fragments to route entries in `src/router.ts`
-   - Update `src/layouts/index.ts` to render fragments in the layout
+   - Use `<Fragment id="..." />` in layouts or pages to position fragments
    - The app is auto-discovered by preview/deploy scripts — no config edits needed

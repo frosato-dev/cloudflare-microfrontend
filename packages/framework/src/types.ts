@@ -5,18 +5,18 @@ export interface FragmentResponse {
   css?: string;
 }
 
+export interface AppRoute {
+  path: string;
+  component: Component;
+  layout?: string;
+  middleware?: string[];
+}
+
 export interface RouteDefinition {
   path: string;
   component: string;
   layout: string;
-  fragments: string[];
   middleware: string[];
-}
-
-export interface LayoutSlots {
-  header?: string;
-  default: string;
-  footer?: string;
 }
 
 export type Middleware = (request: Request) => Response | void | Promise<Response | void>;
@@ -26,7 +26,6 @@ export interface MatchedRoute {
   component: Component;
   props: Record<string, string>;
   layout: string;
-  fragments: string[];
   middleware: string[];
 }
 
@@ -35,24 +34,7 @@ export interface RouteEntry {
   paramNames: string[];
   component: Component;
   layout: string;
-  fragments: string[];
   middleware: string[];
-}
-
-export interface LayoutContext {
-  pageHtml: string;
-  fragments: Record<string, FragmentResponse>;
-  route: MatchedRoute;
-  headLinks: string;
-  clientScripts: string;
-}
-
-export interface StreamLayoutContext {
-  fragmentPromises: Record<string, Promise<FragmentResponse>>;
-  pageHtmlPromise: Promise<string>;
-  route: MatchedRoute;
-  headLinks: string;
-  clientScripts: string;
 }
 
 export type FragmentFetcher = (

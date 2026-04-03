@@ -1,24 +1,17 @@
 import { handleRequest } from '../request-handler.js';
+import type { Component } from 'vue';
 import type {
   AssetManifest,
   FragmentFetcher,
-  LayoutContext,
   Middleware,
   RouteEntry,
 } from '../types.js';
 
 export interface ShellWorkerConfig {
   routes: RouteEntry[];
-  layouts: Record<string, (ctx: LayoutContext) => string>;
   middlewareRegistry: Record<string, Middleware>;
-  streamLayoutFn: (ctx: {
-    headerHtml: string;
-    otherFragments: string;
-    pageHtml: string;
-    headLinks: string;
-    clientScripts: string;
-    inlineStyles: string;
-  }) => { before: string; after: string };
+  layouts: Record<string, Component>;
+  document: { title: string; baseStyles?: string };
 }
 
 export function createShellWorker(config: ShellWorkerConfig) {
@@ -26,12 +19,11 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
   return {
     async fetch(request: Request, env: Record<string, { fetch: typeof fetch }>): Promise<Response> {
-      // Load manifest from assets binding on first request
       if (!manifest && (env as any).ASSETS) {
         try {
           const res = await (env as any).ASSETS.fetch(new Request('https://dummy/assets/manifest.json'));
           if (res.ok) manifest = await res.json();
-        } catch { /* manifest optional — falls back to unhashed names */ }
+        } catch {}
       }
 
       const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {

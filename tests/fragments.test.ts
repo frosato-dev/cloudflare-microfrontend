@@ -1,10 +1,26 @@
 import { describe, it, expect } from 'vitest';
+import { defineComponent, h } from 'vue';
 import { render as renderHeader } from '../packages/fragments/fragment-header/src/entry-server';
 import { render as renderProduct } from '../packages/fragments/fragment-product/src/entry-server';
 import { routes } from '../packages/apps/front-office/src/router';
-import { layouts } from '../packages/apps/front-office/src/layouts/index';
-import { middlewareRegistry } from '../packages/apps/front-office/src/middleware';
-import { matchRoute, handleRequest, type FragmentResponse } from '@meta-framework/core';
+import { buildMiddlewareRegistry } from '@meta-framework/core';
+import loggerMw from '../packages/apps/front-office/src/middleware/logger';
+
+const middlewareRegistry = buildMiddlewareRegistry({
+  './middleware/logger.ts': { default: loggerMw },
+});
+import { matchRoute, toRouteEntries, handleRequest, type FragmentResponse } from '@meta-framework/core';
+
+const routeEntries = toRouteEntries(routes);
+
+const TestLayout = defineComponent({
+  setup(_, { slots }) {
+    return () => h('div', { id: 'layout' }, [
+      h('div', { 'data-fragment': 'header', 'data-props': '{}', 'data-allow-mismatch': '' }),
+      h('main', null, slots.default?.()),
+    ]);
+  },
+});
 
 describe('fragment SSR', () => {
   it('header fragment renders HTML', async () => {
@@ -23,40 +39,39 @@ describe('fragment SSR', () => {
 
 describe('router', () => {
   it('matches index route', () => {
-    const route = matchRoute(routes, '/');
+    const route = matchRoute(routeEntries, '/');
     expect(route).toBeTruthy();
-    expect(route!.fragments).toContain('header');
+    expect(route!.layout).toBe('default');
   });
 
   it('matches product route with param', () => {
-    const route = matchRoute(routes, '/product/galaxy-s24');
+    const route = matchRoute(routeEntries, '/product/galaxy-s24');
     expect(route).toBeTruthy();
     expect(route!.props.id).toBe('galaxy-s24');
-    expect(route!.fragments).toContain('product');
   });
 
   it('returns null for unknown routes', () => {
-    expect(matchRoute(routes, '/unknown')).toBeNull();
+    expect(matchRoute(routeEntries, '/unknown')).toBeNull();
   });
 });
 
 describe('shell assembly', () => {
   const config = {
-    routes,
-    layouts,
+    routes: routeEntries,
     middlewareRegistry,
-    streamLayoutFn: () => ({ before: '', after: '' }),
+    layouts: { default: TestLayout },
+    document: { title: 'Test' },
   };
 
   it('renders full page with fragments', async () => {
-    const mockFetcher = async (id: string, _req: Request, _props: Record<string, string> = {}): Promise<FragmentResponse> => {
+    const mockFetcher = async (id: string): Promise<FragmentResponse> => {
       if (id === 'header') return { html: '<header>Mock Header</header>' };
       if (id === 'product') return { html: '<div>Mock Product</div>' };
       return { html: '' };
     };
 
     const request = new Request('http://localhost:3000/');
-    const response = await handleRequest(request, mockFetcher, config, { isDev: true });
+    const response = await handleRequest(request, mockFetcher, config);
     const html = await response.text();
 
     expect(html).toContain('<!DOCTYPE html>');
@@ -66,7 +81,7 @@ describe('shell assembly', () => {
 
   it('returns 404 for unknown routes', async () => {
     const request = new Request('http://localhost:3000/nope');
-    const response = await handleRequest(request, async (_id, _req, _props = {}) => ({ html: '' }), config, { isDev: true });
+    const response = await handleRequest(request, async () => ({ html: '' }), config);
     expect(response.status).toBe(404);
   });
 });

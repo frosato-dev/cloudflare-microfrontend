@@ -1,84 +1,42 @@
-import type { FragmentResponse, LayoutContext, StreamLayoutContext } from './types.js';
+import type { Component } from 'vue';
+
+export function buildLayoutRegistry(
+  modules: Record<string, { default: Component }>,
+): Record<string, Component> {
+  const registry: Record<string, Component> = {};
+  for (const [path, mod] of Object.entries(modules)) {
+    const match = path.match(/\/([^/]+?)(?:Layout)?\.vue$/);
+    if (match) registry[match[1].toLowerCase()] = mod.default;
+  }
+  return registry;
+}
 
 export function wrapFragment(id: string, html: string, props: Record<string, string> = {}): string {
   return `<div data-fragment="${id}" data-props='${JSON.stringify(props)}'>${html}</div>`;
 }
 
-export function renderLayout(
-  layouts: Record<string, (ctx: LayoutContext) => string>,
-  name: string,
-  ctx: LayoutContext,
-): string {
-  const layout = layouts[name] || layouts.default;
-  return layout(ctx);
-}
+export async function* streamResponse(ctx: {
+  title: string;
+  baseStyles: string;
+  headLinks: string;
+  inlineStyles: string;
+  appHtml: string;
+  clientScripts: string;
+}): AsyncGenerator<string> {
+  yield `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${ctx.title}</title>
+  <style>${ctx.baseStyles}</style>
+  ${ctx.headLinks}
+  ${ctx.inlineStyles}
+</head>
+<body>
+  <div id="app">${ctx.appHtml}</div>
+  ${ctx.clientScripts}
+`;
 
-export async function* streamLayout(
-  layoutFn: (ctx: {
-    headerHtml: string;
-    otherFragments: string;
-    pageHtml: string;
-    headLinks: string;
-    clientScripts: string;
-    inlineStyles: string;
-  }) => { before: string; after: string },
-  ctx: StreamLayoutContext,
-): AsyncGenerator<string> {
-  const resolvedFragments: Record<string, FragmentResponse> = {};
-  const deferredIds: string[] = [];
-
-  // Race all fragments — resolve what we can in ~5ms, defer the rest
-  await Promise.all(
-    ctx.route.fragments.map((id) =>
-      Promise.race([
-        ctx.fragmentPromises[id].then((res) => { resolvedFragments[id] = res; }),
-        new Promise((r) => setTimeout(r, 5)),
-      ]),
-    ),
-  );
-
-  for (const id of ctx.route.fragments) {
-    if (!resolvedFragments[id]) deferredIds.push(id);
-  }
-
-  const pageHtml = await ctx.pageHtmlPromise;
-
-  // Build fragment HTML
-  const fragmentHtmlParts: string[] = [];
-  for (const id of ctx.route.fragments) {
-    const props = id === 'header' ? {} : ctx.route.props;
-    const f = resolvedFragments[id];
-    fragmentHtmlParts.push(
-      f ? wrapFragment(id, f.html, props) : `<div data-fragment="${id}" data-props='${JSON.stringify(props)}'></div>`,
-    );
-  }
-
-  const headerHtml = fragmentHtmlParts.find((_, i) => ctx.route.fragments[i] === 'header') || '';
-  const otherFragments = fragmentHtmlParts.filter((_, i) => ctx.route.fragments[i] !== 'header').join('\n      ');
-
-  const inlineStyles = Object.values(resolvedFragments).map(f => f.css ? `<style>${f.css}</style>` : '').join('\n');
-
-  const { before, after } = layoutFn({
-    headerHtml,
-    otherFragments,
-    pageHtml,
-    headLinks: ctx.headLinks,
-    clientScripts: ctx.clientScripts,
-    inlineStyles,
-  });
-
-  // 1. Flush shell immediately
-  yield before;
-
-  // 2. Stream deferred fragments
-  for (const id of deferredIds) {
-    const fragment = await ctx.fragmentPromises[id];
-    if (fragment) {
-      const escapedHtml = fragment.html.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/<\/script>/gi, '<\\/script>');
-      yield `<script>document.querySelector('[data-fragment="${id}"]').innerHTML=\`${escapedHtml}\`;</script>\n`;
-    }
-  }
-
-  // 3. Close
-  yield after;
+  yield `</body>\n</html>`;
 }

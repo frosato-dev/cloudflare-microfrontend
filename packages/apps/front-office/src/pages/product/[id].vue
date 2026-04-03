@@ -2,11 +2,14 @@
   <div class="product-page">
     <h2>Product: {{ id }}</h2>
     <p>This page hosts the product fragment below.</p>
+    <Fragment id="product" :fragment-props="{ id }" />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{ id: string }>();
+import { Fragment } from '@meta-framework/core';
+
+const { id } = defineProps<{ id: string }>();
 </script>
 
 <style scoped>
