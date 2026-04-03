@@ -5,11 +5,11 @@
   "scripts": {
     "dev": "node --import tsx scripts/dev-server.ts",
     "build": "pnpm -r run build",
-    "preview": "pnpm run build && node --import tsx scripts/preview.ts",
-    "preview:front-office": "pnpm run build && node --import tsx scripts/preview.ts --app front-office",
-    "preview:back-office": "pnpm run build && node --import tsx scripts/preview.ts --app back-office",
+    "preview": "pnpm run build && framework-cli preview",
+    "preview:front-office": "pnpm run build && framework-cli preview --app front-office",
+    "preview:back-office": "pnpm run build && framework-cli preview --app back-office",
     "test": "vitest run",
-    "deploy": "pnpm run build && node --import tsx scripts/deploy.ts"
+    "deploy": "pnpm run build && framework-cli deploy"
   },
   "devDependencies": {
     "framework": "link:../framework",

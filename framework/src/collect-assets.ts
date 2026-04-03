@@ -1,12 +1,10 @@
 import { resolve } from 'path';
 import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'fs';
-import { discoverWorkers } from 'framework/discover';
+import { discoverWorkers } from './discover.ts';
 
-const ROOT = resolve(import.meta.dirname, '..');
-const STATIC_DIR = resolve(ROOT, 'dist/static');
-
-export function collectAssets() {
-  const workers = discoverWorkers(ROOT);
+export function collectAssets(root: string) {
+  const STATIC_DIR = resolve(root, 'dist/static');
+  const workers = discoverWorkers(root);
 
   rmSync(STATIC_DIR, { recursive: true, force: true });
   const targetDir = resolve(STATIC_DIR, 'assets');

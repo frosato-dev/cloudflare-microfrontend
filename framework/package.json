@@ -2,6 +2,9 @@
   "name": "framework",
   "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "framework-cli": "./bin/framework-cli.mjs"
+  },
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
@@ -12,6 +15,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.1.0",
+    "tsx": "^4.19.0",
     "vite": "^5.4.0"
   },
   "peerDependencies": {
