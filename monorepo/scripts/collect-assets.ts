@@ -1,6 +1,6 @@
 import { resolve } from 'path';
 import { cpSync, mkdirSync, existsSync, rmSync, readFileSync, writeFileSync, readdirSync } from 'fs';
-import { discoverWorkers } from '../packages/framework/src/discover.js';
+import { discoverWorkers } from '../../framework/src/discover.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const STATIC_DIR = resolve(ROOT, 'dist/static');

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import { resolve } from 'path';
 
-const fw = (sub: string) => resolve(__dirname, `packages/framework/src/${sub}`);
+const fw = (sub: string) => resolve(__dirname, `../framework/src/${sub}`);
 
 export default defineConfig({
   plugins: [vue()],

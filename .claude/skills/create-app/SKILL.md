@@ -1,6 +1,6 @@
 ---
 name: create-app
-description: Scaffold a new app (shell worker) in the meta-framework. Creates all boilerplate files under packages/apps/{name}/.
+description: Scaffold a new app (shell worker) in the meta-framework. Creates all boilerplate files under monorepo/packages/apps/{name}/.
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ Scaffold a new shell app (the orchestrating worker that stitches fragments). The
 
 1. **Parse the name** from the argument. Should be lowercase kebab-case (e.g. `back-office`, `admin`). If no name is provided, ask the user for one.
 
-2. **Create the following files** under `packages/apps/{name}/`:
+2. **Create the following files** under `monorepo/packages/apps/{name}/`:
 
 ### `package.json`
 ```json
@@ -132,7 +132,7 @@ hydrateShell({
 
 Replace `{name}` with the actual app name and `{Name}` with the capitalized version.
 
-3. **Run `pnpm install`** from the repo root to register the new workspace package. Use the volta workaround if pnpm fails: `~/.volta/tools/image/node/22.22.2/bin/npx pnpm install`.
+3. **Run `pnpm install`** from the `monorepo/` directory to register the new workspace package. Use the volta workaround if pnpm fails: `cd monorepo && ~/.volta/tools/image/node/22.22.2/bin/npx pnpm install`.
 
 4. **Remind the user** they need to:
    - Add pages under `src/pages/`

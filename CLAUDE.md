@@ -1,21 +1,28 @@
-# Meta Framework POC
+# Meta Framework
 
 ## Project
 
-Back Market meta-framework POC — Vue micro-frontends on Cloudflare Workers
+Back Market meta-framework — Vue micro-frontends on Cloudflare Workers
+
+## Structure
+
+- `framework/` — independent `@meta-framework/core` npm package
+- `monorepo/` — example monorepo using the framework (apps + fragments)
+  - `monorepo/packages/apps/` — shell workers (front-office, back-office)
+  - `monorepo/packages/fragments/` — micro-frontend fragments
 
 ## Architecture
 
 - Fragment stitching: each fragment = independent Worker SSR'ing Vue HTML
 - Shell Worker owns Vue runtime, assembles + hydrates all fragments
 - No shared SSR state; client-side pub-sub for cross-fragment comms
-- Monorepo: `packages/shell/`, `packages/fragment-*/`
 - Nuxt-like DX: file-based routing, layouts, middleware
 - Vite builds, `ssr.target: 'webworker'`
 - Vue externalized from fragment client builds, loaded once via import map (`/assets/vue.js`). Shell produces the shared Vue chunk via `manualChunks`
-- Hardest problem: shell hydrating HTML produced by separate fragment Workers
 
 ## Commands
+
+Run from `monorepo/`:
 
 - `pnpm install` - install deps
 - `pnpm run dev` - vite SSR dev server (port 3000)
@@ -38,4 +45,4 @@ Volta shims often fail in Claude Code sandbox. When `pnpm`/`npm` fails with "Nod
 ~/.volta/tools/image/node/<version>/bin/npx pnpm <command>
 ```
 
-Check `package.json` volta field for pinned version.
+Check `monorepo/package.json` volta field for pinned version.

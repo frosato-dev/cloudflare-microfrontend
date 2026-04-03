@@ -37,31 +37,7 @@ importers:
         specifier: ^4.78.0
         version: 4.78.0
 
-  packages/apps/back-office:
-    dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
-        version: link:../../framework
-
-  packages/apps/front-office:
-    dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
-        version: link:../../framework
-
-  packages/fragments/fragment-header:
-    dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
-        version: link:../../framework
-
-  packages/fragments/fragment-product:
-    dependencies:
-      '@meta-framework/core':
-        specifier: workspace:*
-        version: link:../../framework
-
-  packages/framework:
+  ../framework:
     dependencies:
       '@vitejs/plugin-vue':
         specifier: ^5.1.0
@@ -75,6 +51,30 @@ importers:
       vue-router:
         specifier: ^4.4.0
         version: 4.6.4(vue@3.5.31(typescript@5.9.3))
+
+  packages/apps/back-office:
+    dependencies:
+      '@meta-framework/core':
+        specifier: workspace:*
+        version: link:../../../../framework
+
+  packages/apps/front-office:
+    dependencies:
+      '@meta-framework/core':
+        specifier: workspace:*
+        version: link:../../../../framework
+
+  packages/fragments/fragment-header:
+    dependencies:
+      '@meta-framework/core':
+        specifier: workspace:*
+        version: link:../../../../framework
+
+  packages/fragments/fragment-product:
+    dependencies:
+      '@meta-framework/core':
+        specifier: workspace:*
+        version: link:../../../../framework
 
 packages:
 

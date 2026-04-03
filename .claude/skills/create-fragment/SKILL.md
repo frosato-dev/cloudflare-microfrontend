@@ -1,6 +1,6 @@
 ---
 name: create-fragment
-description: Scaffold a new fragment (micro-frontend) in the meta-framework. Creates all boilerplate files under packages/fragments/fragment-{name}/.
+description: Scaffold a new fragment (micro-frontend) in the meta-framework. Creates all boilerplate files under monorepo/packages/fragments/fragment-{name}/.
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ Scaffold a new Vue micro-frontend fragment. The user provides the fragment name 
 
 1. **Parse the name** from the argument. Strip any `fragment-` prefix if the user included it. The name should be lowercase kebab-case (e.g. `cart`, `search-bar`, `footer`). If no name is provided, ask the user for one.
 
-2. **Create the following files** under `packages/fragments/fragment-{name}/`:
+2. **Create the following files** under `monorepo/packages/fragments/fragment-{name}/`:
 
 ### `package.json`
 ```json
@@ -82,7 +82,7 @@ export default createFragmentWorker(render, 'public, max-age=3600');
 
 Replace `{name}` with the actual fragment name and `{Name}` with the capitalized version.
 
-3. **Run `pnpm install`** from the repo root to register the new workspace package. Use the volta workaround if pnpm fails: `~/.volta/tools/image/node/22.22.2/bin/npx pnpm install`.
+3. **Run `pnpm install`** from the `monorepo/` directory to register the new workspace package. Use the volta workaround if pnpm fails: `~/.volta/tools/image/node/22.22.2/bin/npx pnpm install`.
 
 4. **Remind the user** they need to:
    - Add the fragment to a route's `fragments` array in the app's `router.ts`

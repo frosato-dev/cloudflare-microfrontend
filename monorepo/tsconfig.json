@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "lib": ["ES2022"],
+    "skipLibCheck": true,
+    "paths": {
+      "@meta-framework/core": ["../framework/src/index.ts"],
+      "@meta-framework/core/*": ["../framework/src/*"]
+    }
+  },
+  "include": ["../framework/src/**/*.ts", "packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts"]
+}
