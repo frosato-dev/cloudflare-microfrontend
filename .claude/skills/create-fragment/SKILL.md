@@ -79,10 +79,6 @@ Replace `{name}` with the actual fragment name and `{Name}` with the capitalized
 
 Note: `entry-server.ts` is generated automatically by the framework via a virtual module based on `fragment.config.ts`. Do NOT create it manually.
 
-4. **Remind the user** they need to:
-   - Add the fragment to a route's `fragments` array in the app's `router.ts`
-   - Add rendering logic for it in the app's `layouts/index.ts`
-   - Customize `src/App.vue` with actual UI
-   - If the fragment needs props from the request, add a `props(request)` function in `fragment.config.ts` (see `fragment-product` for an example)
+4. **Remind the user** the fragment is ready to use — add `<Fragment id="{name}" />` in any app layout to render it. If it needs props from the request, add a `props(request)` function in `fragment.config.ts` (see `fragment-product` for an example).
 
 No other files need editing — scripts and wrangler bindings are auto-discovered.

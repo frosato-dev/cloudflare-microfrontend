@@ -52,6 +52,12 @@ importers:
         specifier: link:../../../../framework
         version: link:../../../../framework
 
+  packages/fragments/fragment-footer:
+    dependencies:
+      framework:
+        specifier: link:../../../../framework
+        version: link:../../../../framework
+
   packages/fragments/fragment-header:
     dependencies:
       framework:

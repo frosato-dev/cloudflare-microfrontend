@@ -11,6 +11,10 @@
   },
   "services": [
     {
+      "binding": "FRAGMENT_FOOTER",
+      "service": "fragment-footer"
+    },
+    {
       "binding": "FRAGMENT_HEADER",
       "service": "fragment-header"
     },

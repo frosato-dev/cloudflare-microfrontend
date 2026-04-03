@@ -3,6 +3,7 @@
   <main>
     <slot />
   </main>
+  <Fragment id="footer" />
 </template>
 
 <script setup lang="ts">

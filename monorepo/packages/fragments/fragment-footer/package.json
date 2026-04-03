@@ -1,0 +1,11 @@
+{
+  "name": "@meta-framework/fragment-footer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && vite build --mode client"
+  },
+  "dependencies": {
+    "framework": "link:../../../../framework"
+  }
+}
