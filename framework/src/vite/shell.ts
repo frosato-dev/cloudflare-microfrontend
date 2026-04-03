@@ -7,6 +7,8 @@ const VIRTUAL_SERVER = 'virtual:shell-entry-server';
 const RESOLVED_SERVER = '\0' + VIRTUAL_SERVER;
 const VIRTUAL_CLIENT = 'virtual:shell-entry-client';
 const RESOLVED_CLIENT = '\0' + VIRTUAL_CLIENT;
+const VIRTUAL_VUE = 'virtual:vue-exports';
+const RESOLVED_VUE = '\0' + VIRTUAL_VUE;
 
 /** List files matching a glob-like pattern in a directory */
 function listFiles(dir: string, ext: string): string[] {
@@ -16,14 +18,24 @@ function listFiles(dir: string, ext: string): string[] {
     .map((f) => resolve(dir, f).replace(/\\/g, '/'));
 }
 
-/** Generate an object literal from files: { './relative/path': await import('abs') } */
-function buildEagerImports(files: string[], baseDir: string): string {
-  if (!files.length) return '{}';
-  const entries = files.map((f) => {
-    const rel = './' + f.slice(baseDir.length + 1);
-    return `  '${rel}': await import('${f}')`;
-  });
-  return `{\n${entries.join(',\n')}\n}`;
+/**
+ * Virtual module that re-exports every Vue binding by name.
+ * Used as a separate entry so that `preserveEntrySignatures` keeps
+ * all exports — including aliases like createElementVNode — intact.
+ */
+function vueExportsPlugin(): Plugin {
+  return {
+    name: 'meta-framework:vue-exports',
+    resolveId(id) {
+      if (id === VIRTUAL_VUE) return RESOLVED_VUE;
+    },
+    async load(id) {
+      if (id !== RESOLVED_VUE) return;
+      const vue = await import('vue');
+      const names = Object.keys(vue).filter((n) => n !== 'default' && n !== '__esModule');
+      return names.map((n) => `export { ${n} } from 'vue';`).join('\n');
+    },
+  };
 }
 
 function shellEntryServerPlugin(cwd: string): Plugin {
@@ -106,18 +118,18 @@ export function defineShellConfig() {
         : resolve(cwd, 'src/entry-client.ts');
 
       return {
-        plugins: [vue(), ...(hasConfig ? [shellEntryClientPlugin(cwd)] : [])],
+        plugins: [vue(), vueExportsPlugin(), ...(hasConfig ? [shellEntryClientPlugin(cwd)] : [])],
         build: {
           outDir: 'dist/client',
           manifest: true,
           rollupOptions: {
-            input: clientInput,
+            input: { shell: clientInput, vue: VIRTUAL_VUE },
+            preserveEntrySignatures: 'exports-only',
             output: {
-              entryFileNames: `shell.[hash].js`,
+              entryFileNames: `[name].[hash].js`,
               assetFileNames: `shell.[hash].[ext]`,
               format: 'es' as const,
               chunkFileNames: '[name].[hash].js',
-              manualChunks: { vue: ['vue'] },
             },
           },
         },
