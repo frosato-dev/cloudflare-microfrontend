@@ -11,5 +11,5 @@
     "lib": ["ES2022"],
     "skipLibCheck": true
   },
-  "include": ["packages/apps/*/src/**/*.ts", "packages/apps/*/src/**/*.vue", "packages/fragments/*/src/**/*.ts", "packages/fragments/*/src/**/*.vue", "scripts/**/*.ts"]
+  "include": ["packages/**/*.ts", "packages/**/*.vue"]
 }
