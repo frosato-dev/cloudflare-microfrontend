@@ -41,12 +41,7 @@ Scaffold a new shell app (the orchestrating worker that stitches fragments). The
   "assets": {
     "directory": "../../../dist/static",
     "binding": "ASSETS",
-    "html_handling": "none",
-    "headers": {
-      "/assets/*": {
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
-    },
+    "html_handling": "none"
   },
 }
 ```

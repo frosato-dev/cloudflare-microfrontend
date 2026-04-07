@@ -61,5 +61,8 @@ export function collectAssets(root: string) {
     }
   }
 
+  // Write _headers file for Cloudflare static asset cache
+  writeFileSync(resolve(STATIC_DIR, '_headers'), `/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n`);
+
   console.log('  Assets collected. Manifest:', mergedManifest);
 }
