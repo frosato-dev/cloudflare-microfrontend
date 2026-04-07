@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { defineComponent, h } from 'vue';
-import { render as renderHeader } from '../packages/fragments/fragment-header/src/entry-server';
-import { render as renderProduct } from '../packages/fragments/fragment-product/src/entry-server';
+import { createSSRApp, defineComponent, h } from 'vue';
+import { renderToString } from 'vue/server-renderer';
+import HeaderApp from '../packages/fragments/fragment-header/src/App.vue';
+import ProductApp from '../packages/fragments/fragment-product/src/App.vue';
 import { routes } from '../packages/apps/front-office/src/router';
 import loggerMw from '../packages/apps/front-office/src/middleware/logger';
 
@@ -18,16 +19,20 @@ const TestLayout = defineComponent({
   },
 });
 
+async function renderComponent(comp: any, props?: Record<string, any>) {
+  const app = createSSRApp(comp, props);
+  return { html: await renderToString(app) };
+}
+
 describe('fragment SSR', () => {
   it('header fragment renders HTML', async () => {
-    const result = await renderHeader();
+    const result = await renderComponent(HeaderApp);
     expect(result.html).toContain('Back Market');
     expect(result.html).toContain('Cart');
   });
 
   it('product fragment renders with props', async () => {
-    const url = 'http://localhost:3000/fragment?id=iphone-15';
-    const result = await renderProduct(new Request(url));
+    const result = await renderComponent(ProductApp, { id: 'iphone-15' });
     expect(result.html).toContain('iphone-15');
     expect(result.html).toContain('$699');
   });
