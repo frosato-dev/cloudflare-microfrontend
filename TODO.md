@@ -3,6 +3,7 @@
 - [ ] Build only the necessary apps when running the preview? use turborepo?
 - [ ] add vite+ linter, typecheck, ...
 - [ ] fix types
+- [ ] Error boundary
 - [x] Move scripts into framework
 
 # Limitations

@@ -1,37 +1,52 @@
 # Rendering Pipeline
 
-## Dev mode (buffered)
+Every request goes through: **route match → middleware → SSR page+layout → extract fragment placeholders → fetch all fragments in parallel → inject fragment HTML → stream response**.
+
+The shell worker owns the full page. Fragments are independent workers that return `{ html, css? }` JSON. The shell stitches everything together before sending HTML to the browser.
+
+---
+
+## Step by step
 
 ```
-Request
-  → Route match (router.ts)
-  → Middleware chain
-  → Start all work in parallel:
-      ├─ Page SSR (renderToString)
-      └─ Fragment fetches (via Vite ssrLoadModule)
-  → Await all
-  → renderLayout() — assemble full HTML string
-  → Response (single flush)
+Request hits shell worker
+  │
+  ├─ 1. Route match (router.ts)
+  │     path-to-regex matching, extracts :params
+  │
+  ├─ 2. Middleware chain
+  │     runs named middleware in order, any can short-circuit with a Response
+  │
+  ├─ 3. SSR render (request-handler.ts)
+  │     createSSRApp({ Layout > Page }) → renderToString
+  │     produces HTML with <div data-fragment="id" data-props="{}"></div> placeholders
+  │
+  ├─ 4. Extract fragments
+  │     regex scans HTML for data-fragment/data-props pairs
+  │
+  ├─ 5. Fetch fragments in parallel
+  │     each fragment ID → env.FRAGMENT_<ID>.fetch() (CF service binding)
+  │     fragment worker: createSSRApp(Component, props) → renderToString → JSON response
+  │
+  ├─ 6. Inject fragment HTML into placeholders
+  │     replaces empty <div data-fragment="id"></div> with rendered content
+  │
+  └─ 7. Stream response (layouts.ts)
+        async generator yields:
+          <head> (CSS + import map)  ← flushed immediately
+          <body><div id="app">...</div> + scripts
+          </body></html>
 ```
 
-## Production (streaming)
+## Dev vs Production
 
-```
-Request
-  → Route match (router.ts)
-  → Middleware chain
-  → Start all work in parallel (don't await):
-      ├─ Page SSR (renderToString)
-      └─ Fragment fetches (via CF service bindings)
-  → Open ReadableStream, flush chunks as ready:
-      1. <head> (CSS links known at route time — no waiting)
-      2. <body><div id="app">
-      3. await header fragment → flush header HTML
-      4. await page SSR → flush <main><div data-page>...</div>
-      5. await remaining fragments in route order → flush each
-      6. </main></div> + client scripts + </body></html>
-  → Response streams to client progressively
-```
+| | Dev | Production |
+|---|---|---|
+| Fragment fetch | Vite `ssrLoadModule` (in-process) | CF service bindings (`env.FRAGMENT_X.fetch()`) |
+| Asset URLs | Vite dev server handles | Hashed filenames via manifest.json |
+| Vue runtime | Vite serves from node_modules | Pre-built browser bundle emitted as `vue.<hash>.js` |
+
+The rendering pipeline itself is identical in both modes — only the `FragmentFetcher` implementation differs.
 
 ## Fragment lifecycle
 
@@ -39,22 +54,29 @@ Request
 Shell worker                          Fragment worker
     │                                      │
     ├─ env.FRAGMENT_HEADER.fetch(req) ───→ │
-    │                                      ├─ createSSRApp(component, props)
+    │    (route props passed as query)     ├─ config.props(request) → extract props
+    │                                      ├─ createSSRApp(App, props)
     │                                      ├─ renderToString(app)
     │                                      └─ Response JSON { html, css? }
-    │ ←────────────────────────────────────┘
-    ├─ wrapFragment(id, html, props)
-    └─ flush to stream
+    │ ←────────────────────────────────────┘     + Cache-Control header
+    ├─ inject html into placeholder
+    └─ include in streamed response
 ```
 
 ## Client hydration
 
 ```
 Browser receives streamed HTML
-  → Parses progressively (header paints before product arrives)
-  → import map resolves vue → /assets/vue.js (single copy)
-  → shell.js: hydrates [data-page] container
-  → fragment-*.js: hydrates [data-fragment="*"] containers
-      → reads data-props from DOM attribute
-      → createSSRApp + mount
+  → parses progressively
+  → import map resolves `vue` → /assets/vue.<hash>.js (single shared copy)
+  → shell.js:
+      creates vue-router, matches current route
+      recreates Layout > Page tree
+      mounts at #app
+  → fragment-*.js (one per fragment):
+      finds [data-fragment="id"] container
+      reads props from data-props attribute
+      createSSRApp(App, props) → mount
 ```
+
+Shell and fragments hydrate independently — no coordination needed. Vue is loaded once via import map and shared by all.
