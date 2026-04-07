@@ -14,9 +14,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 
 const cartCount = ref(0);
+
+onMounted(() => {
+  window.addEventListener('fragment:event', (event: CustomEvent) => {
+    if (event.detail.type === 'cart:add') {
+      cartCount.value++;
+    }
+  });
+});
 </script>
 
 <style scoped>
@@ -25,6 +33,7 @@ const cartCount = ref(0);
   color: white;
   padding: 1rem;
 }
+
 .header-inner {
   max-width: 1200px;
   margin: 0 auto;
@@ -32,18 +41,24 @@ const cartCount = ref(0);
   align-items: center;
   gap: 2rem;
 }
+
 .logo {
   font-weight: bold;
   font-size: 1.25rem;
   color: #00c853;
   text-decoration: none;
 }
+
 nav a {
   color: #ccc;
   text-decoration: none;
   margin-right: 1rem;
 }
-nav a:hover { color: white; }
+
+nav a:hover {
+  color: white;
+}
+
 .cart-btn {
   margin-left: auto;
   background: #00c853;
