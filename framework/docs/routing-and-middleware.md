@@ -13,7 +13,7 @@ import Product from './pages/Product.vue'
 
 export const routes: AppRoute[] = [
   { path: '/', component: Home },
-  { path: '/product/:slug', component: Product, layout: 'default', middleware: ['auth'] },
+  { path: '/product/:slug', component: Product, layout: 'default', middleware: ['auth'], cache: 'public, s-maxage=60' },
 ]
 ```
 
@@ -21,6 +21,7 @@ export const routes: AppRoute[] = [
 - `component` — Vue component for the page
 - `layout` — name matching a file in `src/layouts/` (defaults to `"default"`)
 - `middleware` — array of middleware names matching files in `src/middleware/`
+- `cache` — `Cache-Control` header value for the HTML response (optional, no caching if omitted)
 
 **Server side:** `matchRoute()` converts paths to regex, extracts params, returns the matched route with props.
 

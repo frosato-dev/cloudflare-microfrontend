@@ -10,6 +10,7 @@ export interface AppRoute {
   component: Component;
   layout?: string;
   middleware?: string[];
+  cache?: string;
 }
 
 export interface RouteDefinition {
@@ -27,6 +28,7 @@ export interface MatchedRoute {
   props: Record<string, string>;
   layout: string;
   middleware: string[];
+  cache?: string;
 }
 
 export interface RouteEntry {
@@ -35,6 +37,7 @@ export interface RouteEntry {
   component: Component;
   layout: string;
   middleware: string[];
+  cache?: string;
 }
 
 export type FragmentFetcher = (

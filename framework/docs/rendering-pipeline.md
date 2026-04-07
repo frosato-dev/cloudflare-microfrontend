@@ -32,6 +32,7 @@ Request hits shell worker
   │     replaces empty <div data-fragment="id"></div> with rendered content
   │
   └─ 7. Stream response (layouts.ts)
+        Cache-Control set from route's `cache` property (enables edge caching per route)
         async generator yields:
           <head> (CSS + import map)  ← flushed immediately
           <body><div id="app">...</div> + scripts
@@ -80,3 +81,7 @@ Browser receives streamed HTML
 ```
 
 Shell and fragments hydrate independently — no coordination needed. Vue is loaded once via import map and shared by all.
+
+## Fragment caching
+
+Fragment SSR responses are cached via the Workers Cache API in the shell worker. Fragments that set a cacheable `Cache-Control` in their `fragment.config.ts` (i.e. not `no-cache`) will be cached at the edge. Cache keys include the full URL with route props as query params, so different param combinations are cached separately.

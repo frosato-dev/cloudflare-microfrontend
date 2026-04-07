@@ -101,9 +101,9 @@ export async function handleRequest(
     await writer.close();
   })();
 
-  return new Response(readable, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
+  const headers: Record<string, string> = { 'Content-Type': 'text/html; charset=utf-8' };
+  if (route.cache) headers['Cache-Control'] = route.cache;
+  return new Response(readable, { headers });
 }
 
 export function extractFragments(html: string): ExtractedFragment[] {

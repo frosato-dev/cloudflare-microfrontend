@@ -19,6 +19,7 @@ export function toRouteEntries(routes: AppRoute[]): RouteEntry[] {
       component: route.component,
       layout: route.layout ?? 'default',
       middleware: route.middleware ?? [],
+      cache: route.cache,
     };
   });
 }
@@ -49,6 +50,7 @@ export function matchRoute(routes: RouteEntry[], pathname: string): MatchedRoute
         props,
         layout: route.layout,
         middleware: route.middleware,
+        cache: route.cache,
       };
     }
   }
