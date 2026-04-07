@@ -3,7 +3,7 @@ import { renderToString } from 'vue/server-renderer';
 import type { Component } from 'vue';
 import { matchRoute } from './router.js';
 import { runMiddleware } from './middleware.js';
-import { streamResponse, wrapFragment } from './layouts.js';
+import { streamResponse } from './layouts.js';
 import type {
   AssetManifest,
   FragmentFetcher,

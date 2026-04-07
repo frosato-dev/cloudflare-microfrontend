@@ -13,13 +13,6 @@ export interface AppRoute {
   cache?: string;
 }
 
-export interface RouteDefinition {
-  path: string;
-  component: string;
-  layout: string;
-  middleware: string[];
-}
-
 export type Middleware = (request: Request) => Response | void | Promise<Response | void>;
 
 export interface MatchedRoute {

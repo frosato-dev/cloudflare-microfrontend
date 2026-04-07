@@ -2,63 +2,39 @@ import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve, basename } from 'path';
 import { existsSync } from 'fs';
+import { virtualModule } from './virtual-module.ts';
 
 const VIRTUAL_ENTRY_CLIENT = 'virtual:fragment-entry-client';
-const RESOLVED_VIRTUAL_CLIENT = '\0' + VIRTUAL_ENTRY_CLIENT;
 const VIRTUAL_ENTRY_SERVER = 'virtual:fragment-entry-server';
-const RESOLVED_VIRTUAL_SERVER = '\0' + VIRTUAL_ENTRY_SERVER;
 
-/**
- * Vite plugin that provides a virtual entry-client.ts for fragments.
- * If the fragment has a real src/entry-client.ts, it's used instead.
- */
 function fragmentEntryClientPlugin(fragmentId: string, srcDir: string): Plugin {
-  return {
-    name: 'meta-framework:fragment-entry-client',
-    resolveId(id) {
-      if (id === VIRTUAL_ENTRY_CLIENT) return RESOLVED_VIRTUAL_CLIENT;
-    },
-    load(id) {
-      if (id !== RESOLVED_VIRTUAL_CLIENT) return;
-      const appPath = resolve(srcDir, 'App.vue').replace(/\\/g, '/');
-      return [
-        `import { hydrateFragment } from 'framework/hydration';`,
-        `import App from '${appPath}';`,
-        `hydrateFragment('${fragmentId}', App);`,
-      ].join('\n');
-    },
-  };
+  const appPath = resolve(srcDir, 'App.vue').replace(/\\/g, '/');
+  return virtualModule('meta-framework:fragment-entry-client', VIRTUAL_ENTRY_CLIENT, () => [
+    `import { hydrateFragment } from 'framework/hydration';`,
+    `import App from '${appPath}';`,
+    `hydrateFragment('${fragmentId}', App);`,
+  ].join('\n'));
 }
 
 function fragmentEntryServerPlugin(cwd: string): Plugin {
   const configPath = resolve(cwd, 'fragment.config.ts').replace(/\\/g, '/');
   const appPath = resolve(cwd, 'src/App.vue').replace(/\\/g, '/');
-
-  return {
-    name: 'meta-framework:fragment-entry-server',
-    resolveId(id) {
-      if (id === VIRTUAL_ENTRY_SERVER) return RESOLVED_VIRTUAL_SERVER;
-    },
-    load(id) {
-      if (id !== RESOLVED_VIRTUAL_SERVER) return;
-      return [
-        `import { createSSRApp } from 'vue';`,
-        `import { renderToString } from 'vue/server-renderer';`,
-        `import { createFragmentWorker } from 'framework/worker';`,
-        `import App from '${appPath}';`,
-        `import config from '${configPath}';`,
-        ``,
-        `async function render(request) {`,
-        `  const props = config.props ? config.props(request) : {};`,
-        `  const app = createSSRApp(App, props);`,
-        `  const html = await renderToString(app);`,
-        `  return { html };`,
-        `}`,
-        ``,
-        `export default createFragmentWorker(render, config.cache ?? 'private, no-cache');`,
-      ].join('\n');
-    },
-  };
+  return virtualModule('meta-framework:fragment-entry-server', VIRTUAL_ENTRY_SERVER, () => [
+    `import { createSSRApp } from 'vue';`,
+    `import { renderToString } from 'vue/server-renderer';`,
+    `import { createFragmentWorker } from 'framework/worker';`,
+    `import App from '${appPath}';`,
+    `import config from '${configPath}';`,
+    ``,
+    `async function render(request) {`,
+    `  const props = config.props ? config.props(request) : {};`,
+    `  const app = createSSRApp(App, props);`,
+    `  const html = await renderToString(app);`,
+    `  return { html };`,
+    `}`,
+    ``,
+    `export default createFragmentWorker(render, config.cache ?? 'private, no-cache');`,
+  ].join('\n'));
 }
 
 /**

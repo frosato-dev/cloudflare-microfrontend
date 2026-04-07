@@ -4,7 +4,6 @@
 export type {
   AppRoute,
   FragmentResponse,
-  RouteDefinition,
   Middleware,
   MatchedRoute,
   RouteEntry,
@@ -19,10 +18,10 @@ export { matchRoute, toRouteEntries } from './router.js';
 export { runMiddleware } from './middleware.js';
 
 // Layouts
-export { wrapFragment, streamResponse } from './layouts.js';
+export { streamResponse } from './layouts.js';
 
 // Request handler
-export { handleRequest, buildClientTags } from './request-handler.js';
+export { handleRequest } from './request-handler.js';
 
 // Components
 export { default as Fragment } from './components/Fragment.vue';

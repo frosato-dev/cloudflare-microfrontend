@@ -1,14 +1,10 @@
 import type { Middleware } from './types.js';
+import { buildModuleRegistry } from './layouts.js';
 
 export function buildMiddlewareRegistry(
   modules: Record<string, { default: Middleware }>,
 ): Record<string, Middleware> {
-  const registry: Record<string, Middleware> = {};
-  for (const [path, mod] of Object.entries(modules)) {
-    const name = path.match(/\/([^/]+)\.ts$/)?.[1];
-    if (name) registry[name] = mod.default;
-  }
-  return registry;
+  return buildModuleRegistry(modules, /\/([^/]+)\.ts$/);
 }
 
 export async function runMiddleware(
