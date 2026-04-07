@@ -90,7 +90,7 @@ npx wrangler whoami
 
 ---
 
-To connect to personnal account and not use BackMarket one:
+To connect to personnal account and not use BackMarket:
 
 - env -u CLOUDFLARE_API_TOKEN npx wrangler login
 - env -u CLOUDFLARE_API_TOKEN pnpm run deploy

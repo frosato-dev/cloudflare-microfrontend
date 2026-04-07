@@ -15,7 +15,7 @@ export interface HandleRequestConfig {
   routes: RouteEntry[];
   middlewareRegistry: Record<string, Middleware>;
   layouts: Record<string, Component>;
-  document: { title: string; baseStyles?: string };
+  document: { title: string; baseStyles?: string; viewTransitions?: boolean };
   manifest?: AssetManifest;
 }
 
@@ -95,6 +95,7 @@ export async function handleRequest(
       inlineStyles,
       appHtml: finalHtml,
       clientScripts: scripts,
+      viewTransitions: config.document.viewTransitions,
     })) {
       await writer.write(encoder.encode(chunk));
     }

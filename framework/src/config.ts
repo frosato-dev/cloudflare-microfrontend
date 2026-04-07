@@ -1,5 +1,5 @@
 export interface ApplicationConfig {
-  document: { title: string; baseStyles?: string }
+  document: { title: string; baseStyles?: string; viewTransitions?: boolean }
 }
 
 export interface FragmentConfigOptions {
