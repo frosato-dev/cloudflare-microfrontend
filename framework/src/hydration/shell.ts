@@ -17,21 +17,65 @@ export function hydrateShell(config: {
     routes: clientRoutes,
   });
 
-  router.isReady().then(() => {
-    const matched = router.currentRoute.value.matched[0];
-    if (!matched) return;
+  const app = createSSRApp({
+    render() {
+      const matched = router.currentRoute.value.matched[0];
+      if (!matched) return null;
+      const layoutName = (matched.meta?.layout as string) || 'default';
+      const Layout = layouts[layoutName];
+      if (!Layout) return null;
+      const Page = matched.components!.default as Component;
+      return h(Layout, null, { default: () => h(Page, router.currentRoute.value.params) });
+    },
+  });
 
-    const layoutName = (matched.meta?.layout as string) || 'default';
-    const Layout = layouts[layoutName];
-    if (!Layout) return;
+  app.use(router); // must happen before isReady — triggers initial navigation
 
-    const Page = matched.components!.default as Component;
-    const props = router.currentRoute.value.params;
+  let isInitialNav = true;
 
-    const app = createSSRApp({
-      render: () => h(Layout, null, { default: () => h(Page, props) }),
+  // Intercept <a> clicks for SPA navigation
+  document.addEventListener('click', (e) => {
+    const link = (e.target as Element).closest('a[href]');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('http') || href.startsWith('#')) return;
+    e.preventDefault();
+    router.push(href);
+  });
+
+  // Fetch + inject fragment HTML on client-side nav
+  router.afterEach(async (to) => {
+    if (isInitialNav) { isInitialNav = false; return; }
+
+    const res = await fetch(to.fullPath);
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    document.querySelectorAll('[data-fragment]').forEach((el) => {
+      const id = el.getAttribute('data-fragment');
+      const source = doc.querySelector(`[data-fragment="${id}"]`);
+      if (source) el.innerHTML = source.innerHTML;
     });
-    app.use(router);
+
+    // Re-hydrate fragments
+    const registry = (globalThis as any).__fragmentRegistry || {};
+    document.querySelectorAll('[data-fragment]').forEach((el) => {
+      const id = el.getAttribute('data-fragment')!;
+      const entry = registry[id];
+      if (entry) entry(el);
+    });
+  });
+
+  // View Transitions API for smooth cross-fade
+  router.beforeEach((to, from, next) => {
+    if (!isInitialNav && (document as any).startViewTransition) {
+      (document as any).startViewTransition(() => next());
+    } else {
+      next();
+    }
+  });
+
+  router.isReady().then(() => {
     app.mount('#app');
     console.log('[shell] hydrated');
   });
