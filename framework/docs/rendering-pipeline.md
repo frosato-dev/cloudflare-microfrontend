@@ -1,8 +1,8 @@
 # Rendering Pipeline
 
-Every request goes through: **route match → middleware → SSR page+layout → extract fragment placeholders → fetch all fragments in parallel → inject fragment HTML → stream response**.
+Every request goes through: **route match → middleware → SSR page+layout → extract fragment placeholders → stream head + body progressively (fragments fetched in parallel, injected in document order)**.
 
-The shell worker owns the full page. Fragments are independent workers that return `{ html, css? }` JSON. The shell stitches everything together before sending HTML to the browser.
+The shell worker owns the full page. Fragments are independent workers that return `{ html, css? }` JSON. The shell streams HTML progressively — the `<head>` flushes immediately so the browser can start fetching CSS/JS, then body segments stream as each fragment resolves in document order.
 
 ---
 
@@ -24,19 +24,21 @@ Request hits shell worker
   ├─ 4. Extract fragments
   │     regex scans HTML for data-fragment/data-props pairs
   │
-  ├─ 5. Fetch fragments in parallel
+  ├─ 5. Fire all fragment fetches in parallel
   │     each fragment ID → env.FRAGMENT_<ID>.fetch() (CF service binding)
   │     fragment worker: createSSRApp(Component, props) → renderToString → JSON response
   │
-  ├─ 6. Inject fragment HTML into placeholders
-  │     replaces empty <div data-fragment="id"></div> with rendered content
-  │
-  └─ 7. Stream response (layouts.ts)
+  └─ 6. Stream response progressively (request-handler.ts)
         Cache-Control set from route's `cache` property (enables edge caching per route)
-        async generator yields:
-          <head> (CSS + import map)  ← flushed immediately
-          <body><div id="app">...</div> + scripts
+        HTML split at fragment placeholder boundaries, then streamed:
+          <head> (CSS links + import map)     ← flushed immediately, browser starts fetching assets
+          static HTML before first fragment   ← flushed immediately
+          fragment 1 HTML                     ← awaits its fetch, then flushes (+ inline CSS if any)
+          static HTML between fragments       ← flushed immediately
+          fragment N HTML                     ← awaits its fetch, then flushes
+          remaining static HTML + scripts     ← flushed
           </body></html>
+        All fetches run in parallel from step 5 — doc-order awaiting just controls flush order
 ```
 
 ## Dev vs Production
@@ -60,8 +62,8 @@ Shell worker                          Fragment worker
     │                                      ├─ renderToString(app)
     │                                      └─ Response JSON { html, css? }
     │ ←────────────────────────────────────┘     + Cache-Control header
-    ├─ inject html into placeholder
-    └─ include in streamed response
+    ├─ fragment HTML + CSS streamed inline at placeholder position
+    └─ (all fetches run in parallel; awaited in document order for streaming)
 ```
 
 ## Client hydration

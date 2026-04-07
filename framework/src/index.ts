@@ -18,7 +18,7 @@ export { matchRoute, toRouteEntries } from './router.js';
 export { runMiddleware } from './middleware.js';
 
 // Layouts
-export { streamResponse } from './layouts.js';
+export { buildLayoutRegistry } from './layouts.js';
 
 // Request handler
 export { handleRequest } from './request-handler.js';

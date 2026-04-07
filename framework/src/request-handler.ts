@@ -3,10 +3,10 @@ import { renderToString } from 'vue/server-renderer';
 import type { Component } from 'vue';
 import { matchRoute } from './router.js';
 import { runMiddleware } from './middleware.js';
-import { streamResponse } from './layouts.js';
 import type {
   AssetManifest,
   FragmentFetcher,
+  FragmentResponse,
   Middleware,
   RouteEntry,
 } from './types.js';
@@ -23,6 +23,10 @@ interface ExtractedFragment {
   id: string;
   props: Record<string, string>;
 }
+
+type HtmlSegment =
+  | { type: 'static'; html: string }
+  | { type: 'fragment'; id: string; openTag: string };
 
 const defaultBaseStyles = `* { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; }`;
@@ -47,58 +51,70 @@ export async function handleRequest(
     return new Response(`Layout "${route.layout}" not found`, { status: 500 });
   }
 
-  // 1. Render Vue app (layout wrapping page) to get HTML with fragment placeholders
+  // 1. Render Vue app → HTML with fragment placeholders
   const app = createSSRApp({
     render: () => h(Layout, null, { default: () => h(route.component, route.props) }),
   });
   const appHtml = await renderToString(app);
 
-  // 2. Extract fragment placeholders from rendered HTML
+  // 2. Extract fragments, fire all fetches in parallel immediately
   const fragments = extractFragments(appHtml);
   const fragmentIds = fragments.map((f) => f.id);
-
-  // 3. Build client tags using discovered fragments
-  const { headLinks, scripts } = buildClientTags(fragmentIds, config.manifest);
-
-  // 4. Fetch all fragments in parallel
-  const fragmentPromises = Object.fromEntries(
+  const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
     fragments.map((f) => [
       f.id,
       fetchFragment(f.id, request, { ...route.props, ...f.props }),
     ]),
   );
 
-  // 5. Wait for fragments, inject into HTML
-  const resolvedFragments: Record<string, { html: string; css?: string }> = {};
-  await Promise.all(
-    Object.entries(fragmentPromises).map(async ([id, promise]) => {
-      resolvedFragments[id] = await promise;
-    }),
-  );
+  // 3. Build client tags (fragment IDs known upfront)
+  const { headLinks, scripts } = buildClientTags(fragmentIds, config.manifest);
 
-  const finalHtml = injectFragments(appHtml, resolvedFragments);
-  const inlineStyles = Object.values(resolvedFragments)
-    .map((f) => (f.css ? `<style>${f.css}</style>` : ''))
-    .join('\n');
+  // 4. Split appHtml at fragment boundaries for streaming
+  const segments = splitAtFragments(appHtml);
 
-  // 6. Stream response
+  // 5. Stream response: head → body segments (awaiting each fragment in doc order) → scripts → close
   const baseStyles = config.document.baseStyles || defaultBaseStyles;
+  const viewTransitionStyle = config.document.viewTransitions
+    ? `\n  <style>@view-transition { navigation: auto; }
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: ease-in-out;
+}</style>`
+    : '';
+
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
 
   (async () => {
-    for await (const chunk of streamResponse({
-      title: config.document.title,
-      baseStyles,
-      headLinks,
-      inlineStyles,
-      appHtml: finalHtml,
-      clientScripts: scripts,
-      viewTransitions: config.document.viewTransitions,
-    })) {
-      await writer.write(encoder.encode(chunk));
+    // Stream <head> immediately — browser starts fetching CSS/JS
+    await writer.write(encoder.encode(
+      `<!DOCTYPE html>\n<html lang="en">\n<head>\n` +
+      `  <meta charset="UTF-8" />\n` +
+      `  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n` +
+      `  <title>${config.document.title}</title>\n` +
+      `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
+      `  ${headLinks}\n` +
+      `</head>\n<body>\n  <div id="app">`,
+    ));
+
+    // Stream body: static parts flush immediately, fragments await in doc order
+    for (const seg of segments) {
+      if (seg.type === 'static') {
+        await writer.write(encoder.encode(seg.html));
+      } else {
+        const result = await fragmentPromises[seg.id];
+        const css = result.css ? `<style>${result.css}</style>` : '';
+        await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+      }
     }
+
+    // Stream scripts + close
+    await writer.write(encoder.encode(
+      `</div>\n  ${scripts}\n</body>\n</html>`,
+    ));
     await writer.close();
   })();
 
@@ -121,17 +137,26 @@ export function extractFragments(html: string): ExtractedFragment[] {
   return results;
 }
 
-export function injectFragments(
-  html: string,
-  fragments: Record<string, { html: string }>,
-): string {
-  return html.replace(
-    /(<div data-fragment="([^"]+)"[^>]*>)<\/div>/g,
-    (_, openTag, id) => {
-      const content = fragments[id]?.html || '';
-      return `${openTag}${content}</div>`;
-    },
-  );
+/** Split HTML into alternating static / fragment segments for streaming */
+export function splitAtFragments(html: string): HtmlSegment[] {
+  const pattern = /(<div data-fragment="([^"]+)"[^>]*>)<\/div>/g;
+  const segments: HtmlSegment[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(html)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'static', html: html.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: 'fragment', id: match[2], openTag: match[1] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < html.length) {
+    segments.push({ type: 'static', html: html.slice(lastIndex) });
+  }
+
+  return segments;
 }
 
 export function buildClientTags(

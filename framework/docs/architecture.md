@@ -31,7 +31,7 @@ Vue is built once by the shell (as a pre-built browser bundle `vue.<hash>.js`) a
                     │  → fetch in parallel ────┼──→ Fragment Worker (header)  → { html }
                     │                     ────┼──→ Fragment Worker (footer)  → { html }
                     │                     ────┼──→ Fragment Worker (product) → { html }
-                    │  → inject + stream HTML  │
+                    │  → stream progressively  │
                     └─────────────────────────┘
                                 │
                                 ▼
