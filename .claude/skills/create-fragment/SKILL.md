@@ -36,6 +36,7 @@ Scaffold a new Vue micro-frontend fragment. The user provides the fragment name 
   "main": "dist/server/entry-server.js",
   "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
 }
 ```
 
