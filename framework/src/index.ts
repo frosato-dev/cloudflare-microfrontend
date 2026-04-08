@@ -3,6 +3,7 @@
 // Types
 export type {
   AppRoute,
+  LazyComponent,
   FragmentResponse,
   Middleware,
   MatchedRoute,

@@ -84,9 +84,12 @@ export async function handleRequest(
       `  ${shellScripts}\n`,
     ));
 
-    // 3. SSR render (browser already fetching shell assets)
+    // 3. Resolve lazy component + SSR render (browser already fetching shell assets)
+    const comp = typeof route.component === 'function' && !(route.component as any).__vccOpts
+      ? (await (route.component as () => Promise<{ default: Component }>)()).default
+      : route.component as Component;
     const app = createSSRApp({
-      render: () => h(Layout, null, { default: () => h(route.component, route.props) }),
+      render: () => h(Layout, null, { default: () => h(comp, route.props) }),
     });
     const appHtml = await renderToString(app);
 
@@ -100,11 +103,10 @@ export async function handleRequest(
       ]),
     );
 
-    // Phase 2: flush fragment assets + close </head>
-    const { headLinks: fragLinks, scripts: fragScripts } = buildFragmentTags(fragmentIds, config.manifest);
+    // Phase 2: flush fragment CSS (keep in head for FOUC) + close </head>
+    const fragCss = buildFragmentHeadTags(fragmentIds, config.manifest);
     await writer.write(encoder.encode(
-      `  ${fragLinks}\n` +
-      `  ${fragScripts}\n` +
+      `  ${fragCss}\n` +
       `</head>\n<body>\n  <div id="app">`,
     ));
 
@@ -116,6 +118,7 @@ export async function handleRequest(
       } else {
         const result = await fragmentPromises[seg.id];
         const css = result.css ? `<style>${result.css}</style>` : '';
+        const fragScript = buildFragmentBodyTag(seg.id, config.manifest);
         if (config.debug) {
           const meta = config.debug.getMeta().get(seg.id);
           const cached = meta?.cached ?? false;
@@ -123,9 +126,9 @@ export async function handleRequest(
           const serverEnd = meta?.fetchEnd ?? 0;
           const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
           const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
-          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
+          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>${fragScript}`));
         } else {
-          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>${fragScript}`));
         }
       }
     }
@@ -138,11 +141,12 @@ export async function handleRequest(
     await writer.close();
   })();
 
+  const isClientNav = request.headers.get('X-Navigate') === '1';
   const headers: Record<string, string> = {
     'Content-Type': 'text/html; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
-    'Link': linkHeaders.join(', '),
   };
+  if (!isClientNav) headers['Link'] = linkHeaders.join(', ');
   if (route.cache) headers['Cache-Control'] = route.cache;
   return new Response(readable, { headers });
 }
@@ -212,21 +216,23 @@ export function buildShellTags(
   return { headLinks: links.join('\n'), scripts: scripts.join('\n'), linkHeaders };
 }
 
-/** Fragment assets — discovered after SSR */
-export function buildFragmentTags(
+/** Fragment CSS — stays in <head> to prevent FOUC */
+export function buildFragmentHeadTags(
   fragmentIds: string[],
   manifest?: AssetManifest,
-): { headLinks: string; scripts: string } {
+): string {
   const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
-
-  const links = fragmentIds.map(
+  return fragmentIds.map(
     (frag) =>
       `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
-  );
-  const scripts = fragmentIds.map(
-    (frag) =>
-      `<script type="module" src="/assets/${resolve(`fragment-${frag}.js`, `fragment-${frag}.js`)}"></script>`,
-  );
+  ).join('\n');
+}
 
-  return { headLinks: links.join('\n'), scripts: scripts.join('\n') };
+/** Single fragment script — emitted inline after its DOM */
+export function buildFragmentBodyTag(
+  fragmentId: string,
+  manifest?: AssetManifest,
+): string {
+  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
+  return `<script type="module" src="/assets/${resolve(`fragment-${fragmentId}.js`, `fragment-${fragmentId}.js`)}"></script>`;
 }

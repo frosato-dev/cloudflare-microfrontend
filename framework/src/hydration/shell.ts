@@ -47,7 +47,7 @@ export function hydrateShell(config: {
   router.afterEach(async (to) => {
     if (isInitialNav) { isInitialNav = false; return; }
 
-    const res = await fetch(to.fullPath);
+    const res = await fetch(to.fullPath, { headers: { 'X-Navigate': '1' } });
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
@@ -57,11 +57,22 @@ export function hydrateShell(config: {
       if (source) el.innerHTML = source.innerHTML;
     });
 
-    // Re-hydrate fragments
+    // Load scripts for new fragments not yet registered
     const registry = (globalThis as any).__fragmentRegistry || {};
+    const newScripts = doc.querySelectorAll('script[type="module"][src]');
+    for (const script of newScripts) {
+      const src = script.getAttribute('src')!;
+      const match = src.match(/fragment-([^/.]+)/);
+      if (match && !registry[match[1]]) {
+        await import(/* @vite-ignore */ src);
+      }
+    }
+
+    // Re-hydrate fragments (registry may have new entries from imports above)
+    const updatedRegistry = (globalThis as any).__fragmentRegistry || {};
     document.querySelectorAll('[data-fragment]').forEach((el) => {
       const id = el.getAttribute('data-fragment')!;
-      const entry = registry[id];
+      const entry = updatedRegistry[id];
       if (entry) entry(el);
     });
   });

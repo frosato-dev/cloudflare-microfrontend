@@ -1,5 +1,7 @@
 import type { Component } from 'vue';
 
+export type LazyComponent = () => Promise<{ default: Component }>;
+
 export interface FragmentResponse {
   html: string;
   css?: string;
@@ -8,7 +10,7 @@ export interface FragmentResponse {
 
 export interface AppRoute {
   path: string;
-  component: Component;
+  component: Component | LazyComponent;
   layout?: string;
   middleware?: string[];
   cache?: string;
@@ -18,7 +20,7 @@ export type Middleware = (request: Request) => Response | void | Promise<Respons
 
 export interface MatchedRoute {
   path: string;
-  component: Component;
+  component: Component | LazyComponent;
   props: Record<string, string>;
   layout: string;
   middleware: string[];
@@ -28,7 +30,7 @@ export interface MatchedRoute {
 export interface RouteEntry {
   pattern: RegExp;
   paramNames: string[];
-  component: Component;
+  component: Component | LazyComponent;
   layout: string;
   middleware: string[];
   cache?: string;

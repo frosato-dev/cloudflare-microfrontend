@@ -192,23 +192,30 @@ describe('streaming', () => {
     expect(linkHeader).not.toContain('fragment-');
   });
 
-  it('places all scripts in <head>, not after </div> body', async () => {
+  it('shell scripts in <head>, fragment scripts inline after their DOM', async () => {
     const fetcher = async (): Promise<FragmentResponse> => ({ html: '<p>ok</p>' });
     const response = await handleRequest(request(), fetcher, config);
     const html = await response.text();
 
-    // Shell + fragment scripts should be inside <head>
     const headEnd = html.indexOf('</head>');
+
+    // Shell script in <head>
     const shellScriptIdx = html.indexOf('<script type="module" src="/assets/shell.');
-    const fragScriptIdx = html.indexOf('<script type="module" src="/assets/fragment-');
     expect(shellScriptIdx).toBeGreaterThan(-1);
     expect(shellScriptIdx).toBeLessThan(headEnd);
-    expect(fragScriptIdx).toBeGreaterThan(-1);
-    expect(fragScriptIdx).toBeLessThan(headEnd);
 
-    // No scripts after #app closing div
-    const appClose = html.indexOf('</div>\n</body>');
-    const afterApp = html.slice(appClose);
-    expect(afterApp).not.toContain('<script type="module"');
+    // Fragment CSS in <head>
+    const fragCssIdx = html.indexOf('<link rel="stylesheet" href="/assets/fragment-');
+    expect(fragCssIdx).toBeGreaterThan(-1);
+    expect(fragCssIdx).toBeLessThan(headEnd);
+
+    // Fragment scripts NOT in <head>, but after their DOM in body
+    const fragScriptIdx = html.indexOf('<script type="module" src="/assets/fragment-');
+    expect(fragScriptIdx).toBeGreaterThan(-1);
+    expect(fragScriptIdx).toBeGreaterThan(headEnd);
+
+    // Fragment script appears after the fragment's closing </div>
+    const fragDiv = html.indexOf('data-fragment="header"');
+    expect(fragScriptIdx).toBeGreaterThan(fragDiv);
   });
 });

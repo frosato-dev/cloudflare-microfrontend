@@ -1,6 +1,5 @@
 import type { AppRoute } from 'framework';
-import IndexPage from './pages/index.vue';
 
 export const routes: AppRoute[] = [
-  { path: '/', component: IndexPage, layout: 'default', middleware: ['logger'] },
+  { path: '/', component: () => import('./pages/index.vue'), layout: 'default', middleware: ['logger'] },
 ];
