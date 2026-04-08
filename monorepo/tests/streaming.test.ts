@@ -48,7 +48,7 @@ const config = {
 const request = () => new Request('http://localhost:3000/');
 
 describe('streaming', () => {
-  it('flushes <head> before fragments resolve', async () => {
+  it('flushes shell assets in <head> before SSR and fragments', async () => {
     const header = deferred<FragmentResponse>();
     const footer = deferred<FragmentResponse>();
 
@@ -61,19 +61,28 @@ describe('streaming', () => {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
 
-    // First chunk should be <head> with scripts — fragments haven't resolved yet
+    // First chunk: shell assets flushed before SSR runs
     const head = await readChunk(reader, decoder);
     expect(head).toContain('<!DOCTYPE html>');
     expect(head).toContain('<head>');
     expect(head).toContain('<title>Stream Test</title>');
-    expect(head).toContain('<script type="module"');
-    expect(head).toContain('<link rel="modulepreload"');
+    expect(head).toContain('<script type="module" src="/assets/shell.js"');
+    expect(head).toContain('<link rel="modulepreload" href="/assets/vue.js"');
+    expect(head).toContain('<link rel="stylesheet" href="/assets/shell.css"');
+    // Fragment assets NOT in first chunk (SSR hasn't run yet)
+    expect(head).not.toContain('fragment-header');
     expect(head).not.toContain('HEADER_HTML');
+    // </head> not closed yet — fragment tags come after SSR
+    expect(head).not.toContain('</head>');
 
     // Now resolve fragments and drain
     header.resolve({ html: 'HEADER_HTML' });
     footer.resolve({ html: 'FOOTER_HTML' });
     const rest = await drainReader(reader, decoder);
+    // Fragment assets appear after SSR, before body
+    expect(rest).toContain('fragment-header');
+    expect(rest).toContain('fragment-footer');
+    expect(rest).toContain('</head>');
     expect(rest).toContain('HEADER_HTML');
     expect(rest).toContain('FOOTER_HTML');
   });
@@ -169,7 +178,7 @@ describe('streaming', () => {
     expect(footerCssCount).toBe(0);
   });
 
-  it('returns Link headers for early asset discovery', async () => {
+  it('returns Link headers with shell assets for early discovery', async () => {
     const fetcher = async (): Promise<FragmentResponse> => ({ html: '<p>ok</p>' });
     const response = await handleRequest(request(), fetcher, config);
     const linkHeader = response.headers.get('Link')!;
@@ -179,18 +188,23 @@ describe('streaming', () => {
     expect(linkHeader).toContain('shell.css');
     expect(linkHeader).toContain('shell.js');
     expect(linkHeader).toContain('vue.js');
+    // Fragment assets not in Link headers (discovered after SSR)
+    expect(linkHeader).not.toContain('fragment-');
   });
 
-  it('places scripts in <head>, not after </div> body', async () => {
+  it('places all scripts in <head>, not after </div> body', async () => {
     const fetcher = async (): Promise<FragmentResponse> => ({ html: '<p>ok</p>' });
     const response = await handleRequest(request(), fetcher, config);
     const html = await response.text();
 
-    // Scripts should be inside <head>
+    // Shell + fragment scripts should be inside <head>
     const headEnd = html.indexOf('</head>');
-    const scriptIdx = html.indexOf('<script type="module"');
-    expect(scriptIdx).toBeGreaterThan(-1);
-    expect(scriptIdx).toBeLessThan(headEnd);
+    const shellScriptIdx = html.indexOf('<script type="module" src="/assets/shell.');
+    const fragScriptIdx = html.indexOf('<script type="module" src="/assets/fragment-');
+    expect(shellScriptIdx).toBeGreaterThan(-1);
+    expect(shellScriptIdx).toBeLessThan(headEnd);
+    expect(fragScriptIdx).toBeGreaterThan(-1);
+    expect(fragScriptIdx).toBeLessThan(headEnd);
 
     // No scripts after #app closing div
     const appClose = html.indexOf('</div>\n</body>');

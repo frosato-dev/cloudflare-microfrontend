@@ -54,29 +54,9 @@ export async function handleRequest(
     return new Response(`Layout "${route.layout}" not found`, { status: 500 });
   }
 
-  // 1. Render Vue app → HTML with fragment placeholders
-  const app = createSSRApp({
-    render: () => h(Layout, null, { default: () => h(route.component, route.props) }),
-  });
-  const appHtml = await renderToString(app);
+  // 1. Build shell-only tags (always known, no SSR needed)
+  const { headLinks: shellLinks, scripts: shellScripts, linkHeaders } = buildShellTags(config.manifest);
 
-  // 2. Extract fragments, fire all fetches in parallel immediately
-  const fragments = extractFragments(appHtml);
-  const fragmentIds = fragments.map((f) => f.id);
-  const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
-    fragments.map((f) => [
-      f.id,
-      fetchFragment(f.id, request, { ...route.props, ...f.props }),
-    ]),
-  );
-
-  // 3. Build client tags (fragment IDs known upfront)
-  const { headLinks, scripts, linkHeaders } = buildClientTags(fragmentIds, config.manifest);
-
-  // 4. Split appHtml at fragment boundaries for streaming
-  const segments = splitAtFragments(appHtml);
-
-  // 5. Stream response: head → body segments (awaiting each fragment in doc order) → scripts → close
   const baseStyles = config.document.baseStyles || defaultBaseStyles;
   const viewTransitionStyle = config.document.viewTransitions
     ? `\n  <style>@view-transition { navigation: auto; }
@@ -87,25 +67,49 @@ export async function handleRequest(
 }</style>`
     : '';
 
+  // 2. Start streaming — flush shell assets in <head> immediately
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
 
   (async () => {
-    // Stream <head> immediately — browser starts fetching CSS/JS
-    // Scripts (type="module") are deferred by spec, safe in <head>
+    // Phase 1: flush shell assets — browser starts fetching vue.js, shell.js, shell.css NOW
     await writer.write(encoder.encode(
       `<!DOCTYPE html>\n<html lang="en">\n<head>\n` +
       `  <meta charset="UTF-8" />\n` +
       `  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n` +
       `  <title>${config.document.title}</title>\n` +
       `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
-      `  ${headLinks}\n` +
-      `  ${scripts}\n` +
+      `  ${shellLinks}\n` +
+      `  ${shellScripts}\n`,
+    ));
+
+    // 3. SSR render (browser already fetching shell assets)
+    const app = createSSRApp({
+      render: () => h(Layout, null, { default: () => h(route.component, route.props) }),
+    });
+    const appHtml = await renderToString(app);
+
+    // 4. Extract fragments, fire all fetches in parallel
+    const fragments = extractFragments(appHtml);
+    const fragmentIds = fragments.map((f) => f.id);
+    const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
+      fragments.map((f) => [
+        f.id,
+        fetchFragment(f.id, request, { ...route.props, ...f.props }),
+      ]),
+    );
+
+    // Phase 2: flush fragment assets + close </head>
+    const { headLinks: fragLinks, scripts: fragScripts } = buildFragmentTags(fragmentIds, config.manifest);
+    await writer.write(encoder.encode(
+      `  ${fragLinks}\n` +
+      `  ${fragScripts}\n` +
       `</head>\n<body>\n  <div id="app">`,
     ));
 
-    // Stream body: static parts flush immediately, fragments await in doc order
+    // 5. Stream body: static parts flush immediately, fragments await in doc order
+    const segments = splitAtFragments(appHtml);
     for (const seg of segments) {
       if (seg.type === 'static') {
         await writer.write(encoder.encode(seg.html));
@@ -117,7 +121,6 @@ export async function handleRequest(
           const cached = meta?.cached ?? false;
           const serverStart = meta?.fetchStart ?? 0;
           const serverEnd = meta?.fetchEnd ?? 0;
-          // Inject debug data as data-attributes on the fragment div (hydration-safe)
           const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
           const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
           await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
@@ -127,7 +130,7 @@ export async function handleRequest(
       }
     }
 
-    // Stream close (scripts already in <head>, debug bar needs DOM so stays here)
+    // Stream close
     const debugBar = config.debug ? getDebugBarScript(fragmentIds) : '';
     await writer.write(encoder.encode(
       `</div>\n${debugBar}\n</body>\n</html>`,
@@ -180,8 +183,8 @@ export function splitAtFragments(html: string): HtmlSegment[] {
   return segments;
 }
 
-export function buildClientTags(
-  fragmentIds: string[],
+/** Shell assets — always known, no SSR needed */
+export function buildShellTags(
   manifest?: AssetManifest,
 ): { headLinks: string; scripts: string; linkHeaders: string[] } {
   const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
@@ -192,31 +195,38 @@ export function buildClientTags(
 
   const links = [
     `<link rel="stylesheet" href="/assets/${shellCss}">`,
-    ...fragmentIds.map(
-      (frag) =>
-        `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
-    ),
     `<link rel="modulepreload" href="/assets/${vueAsset}">`,
   ];
   const importMap = `<script type="importmap">${JSON.stringify({ imports: { vue: `/assets/${vueAsset}` } })}</script>`;
   const scripts = [
     importMap,
     `<script type="module" src="/assets/${shellJs}"></script>`,
-    ...fragmentIds.map(
-      (frag) =>
-        `<script type="module" src="/assets/${resolve(`fragment-${frag}.js`, `fragment-${frag}.js`)}"></script>`,
-    ),
   ];
 
-  // Link headers — browser processes these before HTML body arrives
   const linkHeaders = [
     `</assets/${shellCss}>; rel=preload; as=style`,
-    ...fragmentIds.map(
-      (frag) => `</assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}>; rel=preload; as=style`,
-    ),
     `</assets/${vueAsset}>; rel=modulepreload`,
     `</assets/${shellJs}>; rel=modulepreload`,
   ];
 
   return { headLinks: links.join('\n'), scripts: scripts.join('\n'), linkHeaders };
+}
+
+/** Fragment assets — discovered after SSR */
+export function buildFragmentTags(
+  fragmentIds: string[],
+  manifest?: AssetManifest,
+): { headLinks: string; scripts: string } {
+  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
+
+  const links = fragmentIds.map(
+    (frag) =>
+      `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
+  );
+  const scripts = fragmentIds.map(
+    (frag) =>
+      `<script type="module" src="/assets/${resolve(`fragment-${frag}.js`, `fragment-${frag}.js`)}"></script>`,
+  );
+
+  return { headLinks: links.join('\n'), scripts: scripts.join('\n') };
 }
