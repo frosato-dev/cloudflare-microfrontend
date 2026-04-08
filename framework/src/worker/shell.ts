@@ -20,6 +20,11 @@ export interface ShellWorkerConfig {
   document: { title: string; baseStyles?: string };
 }
 
+/** Strip s-maxage from Cache-Control (prevents Cloudflare edge from buffering the stream) */
+function stripSMaxAge(cc: string): string {
+  return cc.replace(/,?\s*s-maxage=\d+/g, '').replace(/^\s*,\s*/, '');
+}
+
 export function createShellWorker(config: ShellWorkerConfig) {
   const routeEntries = toRouteEntries(config.routes);
   const middlewareRegistry = buildMiddlewareRegistry(config.middleware);
@@ -36,6 +41,20 @@ export function createShellWorker(config: ShellWorkerConfig) {
       }
 
       const isDebug = isDebugRequest(request);
+      const noCache = isNoCacheRequest(request);
+      const pageCache = caches.default;
+      const pageCacheKey = new Request(request.url);
+
+      // Serve from worker-level page cache (already fully rendered, fast)
+      if (!noCache) {
+        const cached = await pageCache.match(pageCacheKey);
+        if (cached) {
+          const headers = new Headers(cached.headers);
+          const cc = headers.get('Cache-Control');
+          if (cc) headers.set('Cache-Control', stripSMaxAge(cc));
+          return new Response(cached.body, { status: cached.status, headers });
+        }
+      }
 
       const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {
         const bindingKey = `FRAGMENT_${fragmentId.toUpperCase()}`;
@@ -52,7 +71,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
-        if (!isNoCacheRequest(request)) {
+        if (!noCache) {
           const cached = await cache.match(cacheKey);
           if (cached) {
             const result = await cached.json() as any;
@@ -82,7 +101,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         debug = { getMeta: wrapped.getMeta };
       }
 
-      return handleRequest(request, fetcher, {
+      const response = await handleRequest(request, fetcher, {
         routes: routeEntries,
         middlewareRegistry,
         layouts: layoutRegistry,
@@ -90,6 +109,31 @@ export function createShellWorker(config: ShellWorkerConfig) {
         manifest,
         debug,
       });
+
+      // Collect streamed chunks for worker-level cache while streaming to client
+      const cc = response.headers.get('Cache-Control') || '';
+      if (!noCache && cc.includes('s-maxage')) {
+        const chunks: Uint8Array[] = [];
+        const passthrough = new TransformStream<Uint8Array, Uint8Array>({
+          transform(chunk, controller) {
+            chunks.push(chunk);
+            controller.enqueue(chunk);
+          },
+          flush() {
+            // Stream done — cache the collected body
+            const body = new Blob(chunks);
+            ctx.waitUntil(pageCache.put(pageCacheKey, new Response(body, response)));
+          },
+        });
+        const clientHeaders = new Headers(response.headers);
+        clientHeaders.set('Cache-Control', stripSMaxAge(cc));
+        return new Response(
+          response.body!.pipeThrough(passthrough),
+          { status: response.status, headers: clientHeaders },
+        );
+      }
+
+      return response;
     },
   };
 }
