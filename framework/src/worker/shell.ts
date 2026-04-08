@@ -45,8 +45,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const pageCache = caches.default;
       const pageCacheKey = new Request(request.url);
 
-      // Serve from worker-level page cache (already fully rendered, fast)
-      if (!noCache) {
+        // Skip when debug is on — cached page won't have the debug bar
+      if (!noCache && !isDebug) {
         const cached = await pageCache.match(pageCacheKey);
         if (cached) {
           const headers = new Headers(cached.headers);
@@ -112,7 +112,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
       // Collect streamed chunks for worker-level cache while streaming to client
       const cc = response.headers.get('Cache-Control') || '';
-      if (!noCache && cc.includes('s-maxage')) {
+      if (!noCache && !isDebug && cc.includes('s-maxage')) {
         const chunks: Uint8Array[] = [];
         const passthrough = new TransformStream<Uint8Array, Uint8Array>({
           transform(chunk, controller) {
@@ -131,6 +131,13 @@ export function createShellWorker(config: ShellWorkerConfig) {
           response.body!.pipeThrough(passthrough),
           { status: response.status, headers: clientHeaders },
         );
+      }
+
+      // Strip s-maxage so CDN won't cache debug-decorated response
+      if (isDebug && cc.includes('s-maxage')) {
+        const clientHeaders = new Headers(response.headers);
+        clientHeaders.set('Cache-Control', stripSMaxAge(cc));
+        return new Response(response.body, { status: response.status, headers: clientHeaders });
       }
 
       return response;
