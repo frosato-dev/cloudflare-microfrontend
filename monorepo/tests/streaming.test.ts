@@ -106,6 +106,45 @@ describe('streaming', () => {
     expect(headerIdx).toBeLessThan(footerIdx);
   });
 
+  it('footer delay does not block header streaming', async () => {
+    const header = deferred<FragmentResponse>();
+    const footer = deferred<FragmentResponse>();
+
+    const fetcher = async (id: string) => {
+      if (id === 'header') return header.promise;
+      return footer.promise;
+    };
+
+    const response = await handleRequest(request(), fetcher, config);
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+
+    // Skip <head>
+    await readChunk(reader, decoder);
+
+    // Resolve header immediately — it should stream without waiting for footer
+    header.resolve({ html: 'HEADER_FAST' });
+    // Let microtasks flush so the stream writes the header fragment
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Read all available chunks (static parts + header fragment)
+    let streamed = '';
+    // readChunk is non-blocking per chunk; read until we see header content
+    for (let i = 0; i < 10; i++) {
+      const c = await readChunk(reader, decoder);
+      if (!c) break;
+      streamed += c;
+      if (streamed.includes('HEADER_FAST')) break;
+    }
+    expect(streamed).toContain('HEADER_FAST');
+    expect(streamed).not.toContain('FOOTER');
+
+    // Now resolve footer
+    footer.resolve({ html: 'FOOTER_SLOW' });
+    const rest = await drainReader(reader, decoder);
+    expect(rest).toContain('FOOTER_SLOW');
+  });
+
   it('inlines fragment CSS at fragment position', async () => {
     const fetcher = async (id: string): Promise<FragmentResponse> => {
       if (id === 'header') return { html: '<nav>Header</nav>', css: '.header{color:red}' };
