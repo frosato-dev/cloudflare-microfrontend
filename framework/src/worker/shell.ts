@@ -44,7 +44,9 @@ export function createShellWorker(config: ShellWorkerConfig) {
           url.searchParams.set(k, v);
         }
 
-        const cacheKey = new Request(url.toString());
+        const cacheUrl = new URL(url.toString());
+        cacheUrl.searchParams.set('__fragment', fragmentId);
+        const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
         const cached = await cache.match(cacheKey);
