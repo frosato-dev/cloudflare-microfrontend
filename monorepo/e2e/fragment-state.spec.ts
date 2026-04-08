@@ -19,6 +19,17 @@ test('header cart count persists across SPA navigation', async ({ page }) => {
   await expect(cartBtn).toHaveText('Cart (1)');
 });
 
+test('footer link updates product card with new price', async ({ page }) => {
+  await page.goto('/product/iphone-15');
+  await expect(page.locator('.product-card')).toBeVisible();
+  await expect(page.locator('.product-card .price')).toHaveText('From $699');
+
+  await page.locator('footer a[href="/product/macbook-pro"]').click();
+  await expect(page).toHaveURL('/product/macbook-pro');
+  await expect(page.locator('.product-card')).toBeVisible();
+  await expect(page.locator('.product-card .price')).toHaveText('From $499');
+});
+
 test('SPA navigation from home to product shows correct product card (x2)', async ({ page }) => {
   await page.goto('/');
 

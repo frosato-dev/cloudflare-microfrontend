@@ -3,6 +3,7 @@ import { createSSRApp, createApp, type Component, type App } from 'vue';
 export interface FragmentEntry {
   mount: (container: Element) => void;
   app: App | null;
+  hydratedProps: string;
 }
 
 export function hydrateFragment(id: string, App: Component) {
@@ -10,6 +11,7 @@ export function hydrateFragment(id: string, App: Component) {
   registry[id] = {
     mount: (container: Element) => mountFragment(id, App, container, false),
     app: null,
+    hydratedProps: '',
   };
 
   mountFragment(id, App, document.querySelector(`[data-fragment="${id}"]`), true);
@@ -22,6 +24,9 @@ function mountFragment(id: string, App: Component, container: Element | null, ss
   if (!ssr) container.innerHTML = '';
   const app = ssr ? createSSRApp(App, props) : createApp(App, props);
   app.mount(container);
-  if (registry[id]) registry[id].app = app;
+  if (registry[id]) {
+    registry[id].app = app;
+    registry[id].hydratedProps = (container as HTMLElement).dataset.props || '{}';
+  }
   console.log(`[fragment-${id}] hydrated`);
 }

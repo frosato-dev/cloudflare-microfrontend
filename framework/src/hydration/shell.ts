@@ -32,6 +32,7 @@ export function hydrateShell(config: {
   app.use(router); // must happen before isReady — triggers initial navigation
 
   let isInitialNav = true;
+  let navId = 0;
 
   // Intercept <a> clicks for SPA navigation
   document.addEventListener('click', (e) => {
@@ -47,56 +48,43 @@ export function hydrateShell(config: {
   router.afterEach(async (to) => {
     if (isInitialNav) { isInitialNav = false; return; }
 
+    const currentNav = ++navId;
+
     const res = await fetch(to.fullPath, { headers: { 'X-Navigate': '1' } });
+    if (currentNav !== navId) return; // stale nav, abort
     const html = await res.text();
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
-    // Build old/new fragment maps
-    const oldFragments = new Map<string, Element>();
-    document.querySelectorAll('[data-fragment]').forEach((el) => {
-      const id = el.getAttribute('data-fragment')!;
-      oldFragments.set(id, el);
-    });
+    const registry = (globalThis as any).__fragmentRegistry || {};
+
+    // Build source map from fetched HTML
     const newFragments = new Map<string, Element>();
     doc.querySelectorAll('[data-fragment]').forEach((el) => {
       const id = el.getAttribute('data-fragment')!;
       newFragments.set(id, el);
     });
 
-    const registry = (globalThis as any).__fragmentRegistry || {};
+    // Update live DOM fragments
+    document.querySelectorAll('[data-fragment]').forEach((el) => {
+      const id = el.getAttribute('data-fragment')!;
+      const source = newFragments.get(id);
+      if (!source) return; // not in new page — let Vue handle removal
 
-    // Unmount removed fragments
-    for (const [id, el] of oldFragments) {
-      if (!newFragments.has(id)) {
-        const entry = registry[id];
-        if (entry?.app) { entry.app.unmount(); entry.app = null; }
-        el.remove();
-      }
-    }
+      const newProps = (source as HTMLElement).dataset.props || '{}';
+      const entry = registry[id];
+      const hydratedProps = entry?.hydratedProps || '';
 
-    // Determine which fragments need update
-    const toHydrate: Element[] = [];
-    for (const [id, source] of newFragments) {
-      const existing = oldFragments.get(id);
-      if (existing) {
-        const oldProps = (existing as HTMLElement).dataset.props || '{}';
-        const newProps = (source as HTMLElement).dataset.props || '{}';
-        const hasLiveApp = registry[id]?.app && existing.innerHTML.trim() !== '';
-        if (oldProps === newProps && hasLiveApp) {
-          console.log(`[fragment-${id}] skipped (unchanged)`);
-          continue; // same props + live app with content → keep Vue instance
-        }
-        // Props changed — unmount old, replace HTML
-        const entry = registry[id];
-        if (entry?.app) { entry.app.unmount(); entry.app = null; }
-        existing.innerHTML = source.innerHTML;
-        (existing as HTMLElement).dataset.props = newProps;
-        toHydrate.push(existing);
-      } else {
-        // New fragment — inject into DOM
-        toHydrate.push(source);
+      // Same props as last hydration + live app with content → skip (preserve state)
+      if (hydratedProps === newProps && entry?.app && el.innerHTML.trim() !== '') {
+        console.log(`[fragment-${id}] skipped (unchanged)`);
+        return;
       }
-    }
+
+      // Replace content
+      if (entry?.app) { entry.app.unmount(); entry.app = null; }
+      el.innerHTML = source.innerHTML;
+      (el as HTMLElement).dataset.props = newProps;
+    });
 
     // Inject CSS links from new page that aren't already loaded
     doc.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
@@ -116,14 +104,15 @@ export function hydrateShell(config: {
         await import(/* @vite-ignore */ src);
       }
     }
+    if (currentNav !== navId) return; // stale nav, abort
 
-    // Re-hydrate only changed/new fragments
+    // Re-hydrate fragments that need it
     const updatedRegistry = (globalThis as any).__fragmentRegistry || {};
-    for (const el of toHydrate) {
+    document.querySelectorAll('[data-fragment]').forEach((el) => {
       const id = el.getAttribute('data-fragment')!;
       const entry = updatedRegistry[id];
-      if (entry) entry.mount(el);
-    }
+      if (entry && !entry.app) entry.mount(el);
+    });
   });
 
   // View Transitions API for smooth cross-fade
