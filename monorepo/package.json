@@ -9,6 +9,8 @@
     "preview:front-office": "pnpm run build && framework-cli preview --app front-office",
     "preview:back-office": "pnpm run build && framework-cli preview --app back-office",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "clean": "rm -rf packages/apps/*/dist packages/apps/*/.wrangler packages/fragments/*/dist packages/fragments/*/.wrangler",
     "deploy:changed": "pnpm -r --filter '...[HEAD~1]' run build && framework-cli deploy --since HEAD~1",
     "deploy:all": "pnpm run clean && pnpm run build && framework-cli deploy --all"
