@@ -15,7 +15,7 @@ switch (command) {
     console.log(`Usage: framework-cli <command>
 
 Commands:
-  preview [--app <name>]   Build assets + start wrangler dev
-  deploy                   Build assets + deploy all workers`);
+  preview [--app <name>]           Build assets + start wrangler dev
+  deploy [--since <ref>] [--all]   Deploy workers (--since: only changed, --all: force all)`);
     process.exit(command ? 1 : 0);
 }

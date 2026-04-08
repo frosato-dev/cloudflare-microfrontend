@@ -4,12 +4,14 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r run build",
+    "build:changed": "pnpm -r --filter '...[HEAD~1]' run build",
     "preview": "pnpm run build && framework-cli preview",
     "preview:front-office": "pnpm run build && framework-cli preview --app front-office",
     "preview:back-office": "pnpm run build && framework-cli preview --app back-office",
     "test": "vitest run",
     "clean": "rm -rf packages/apps/*/dist packages/apps/*/.wrangler packages/fragments/*/dist packages/fragments/*/.wrangler",
-    "deploy": "pnpm run clean && pnpm run build && framework-cli deploy"
+    "deploy:changed": "pnpm -r --filter '...[HEAD~1]' run build && framework-cli deploy --since HEAD~1",
+    "deploy:all": "pnpm run clean && pnpm run build && framework-cli deploy --all"
   },
   "devDependencies": {
     "framework": "link:../framework",
