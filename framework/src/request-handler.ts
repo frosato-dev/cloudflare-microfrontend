@@ -111,6 +111,8 @@ export async function handleRequest(
     ));
 
     // 5. Stream body: static parts flush immediately, fragments await in doc order
+    // Collect fragment scripts to emit OUTSIDE #app (avoids hydration mismatch)
+    const fragScripts: string[] = [];
     const segments = splitAtFragments(appHtml);
     for (const seg of segments) {
       if (seg.type === 'static') {
@@ -118,7 +120,7 @@ export async function handleRequest(
       } else {
         const result = await fragmentPromises[seg.id];
         const css = result.css ? `<style>${result.css}</style>` : '';
-        const fragScript = buildFragmentBodyTag(seg.id, config.manifest);
+        fragScripts.push(buildFragmentBodyTag(seg.id, config.manifest));
         if (config.debug) {
           const meta = config.debug.getMeta().get(seg.id);
           const cached = meta?.cached ?? false;
@@ -126,17 +128,17 @@ export async function handleRequest(
           const serverEnd = meta?.fetchEnd ?? 0;
           const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
           const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
-          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>${fragScript}`));
+          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
         } else {
-          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>${fragScript}`));
+          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
         }
       }
     }
 
-    // Stream close
+    // Stream close: fragment scripts go after #app to avoid hydration mismatch
     const debugBar = config.debug ? getDebugBarScript(fragmentIds) : '';
     await writer.write(encoder.encode(
-      `</div>\n${debugBar}\n</body>\n</html>`,
+      `</div>\n${fragScripts.join('\n')}\n${debugBar}\n</body>\n</html>`,
     ));
     await writer.close();
   })();

@@ -11,6 +11,8 @@ export function hydrateFragment(id: string, App: Component) {
 function mountFragment(id: string, App: Component, container: Element | null, ssr: boolean) {
   if (!container) return;
   const props = JSON.parse((container as HTMLElement).dataset.props || '{}');
+  // Non-SSR re-mount (SPA nav): clear first so createApp doesn't append on top
+  if (!ssr) container.innerHTML = '';
   const app = ssr ? createSSRApp(App, props) : createApp(App, props);
   app.mount(container);
   console.log(`[fragment-${id}] hydrated`);

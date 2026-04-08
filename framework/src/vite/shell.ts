@@ -112,7 +112,6 @@ export function defineShellConfig() {
               entryFileNames: `shell.[hash].js`,
               assetFileNames: `shell.[hash].[ext]`,
               format: 'es' as const,
-              chunkFileNames: '[name].[hash].js',
             },
           },
         },

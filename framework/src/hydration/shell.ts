@@ -57,6 +57,15 @@ export function hydrateShell(config: {
       if (source) el.innerHTML = source.innerHTML;
     });
 
+    // Inject CSS links from new page that aren't already loaded
+    doc.querySelectorAll('link[rel="stylesheet"]').forEach((link) => {
+      const href = link.getAttribute('href');
+      if (href && !document.querySelector(`link[href="${href}"]`)) {
+        document.head.appendChild(document.createElement('link')).setAttribute('rel', 'stylesheet');
+        document.head.lastElementChild!.setAttribute('href', href);
+      }
+    });
+
     // Load scripts for new fragments not yet registered
     const registry = (globalThis as any).__fragmentRegistry || {};
     const newScripts = doc.querySelectorAll('script[type="module"][src]');
