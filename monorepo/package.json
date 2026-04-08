@@ -8,7 +8,8 @@
     "preview:front-office": "pnpm run build && framework-cli preview --app front-office",
     "preview:back-office": "pnpm run build && framework-cli preview --app back-office",
     "test": "vitest run",
-    "deploy": "pnpm run build && framework-cli deploy"
+    "clean": "rm -rf packages/apps/*/dist packages/apps/*/.wrangler packages/fragments/*/dist packages/fragments/*/.wrangler",
+    "deploy": "pnpm run clean && pnpm run build && framework-cli deploy"
   },
   "devDependencies": {
     "framework": "link:../framework",
