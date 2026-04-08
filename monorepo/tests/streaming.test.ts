@@ -61,11 +61,13 @@ describe('streaming', () => {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
 
-    // First chunk should be <head> — fragments haven't resolved yet
+    // First chunk should be <head> with scripts — fragments haven't resolved yet
     const head = await readChunk(reader, decoder);
     expect(head).toContain('<!DOCTYPE html>');
     expect(head).toContain('<head>');
     expect(head).toContain('<title>Stream Test</title>');
+    expect(head).toContain('<script type="module"');
+    expect(head).toContain('<link rel="modulepreload"');
     expect(head).not.toContain('HEADER_HTML');
 
     // Now resolve fragments and drain
@@ -165,5 +167,34 @@ describe('streaming', () => {
     const footerCssCount = (html.match(/<style>.*?<\/style>/g) || [])
       .filter((s) => s.includes('footer')).length;
     expect(footerCssCount).toBe(0);
+  });
+
+  it('returns Link headers for early asset discovery', async () => {
+    const fetcher = async (): Promise<FragmentResponse> => ({ html: '<p>ok</p>' });
+    const response = await handleRequest(request(), fetcher, config);
+    const linkHeader = response.headers.get('Link')!;
+
+    expect(linkHeader).toContain('rel=preload; as=style');
+    expect(linkHeader).toContain('rel=modulepreload');
+    expect(linkHeader).toContain('shell.css');
+    expect(linkHeader).toContain('shell.js');
+    expect(linkHeader).toContain('vue.js');
+  });
+
+  it('places scripts in <head>, not after </div> body', async () => {
+    const fetcher = async (): Promise<FragmentResponse> => ({ html: '<p>ok</p>' });
+    const response = await handleRequest(request(), fetcher, config);
+    const html = await response.text();
+
+    // Scripts should be inside <head>
+    const headEnd = html.indexOf('</head>');
+    const scriptIdx = html.indexOf('<script type="module"');
+    expect(scriptIdx).toBeGreaterThan(-1);
+    expect(scriptIdx).toBeLessThan(headEnd);
+
+    // No scripts after #app closing div
+    const appClose = html.indexOf('</div>\n</body>');
+    const afterApp = html.slice(appClose);
+    expect(afterApp).not.toContain('<script type="module"');
   });
 });
