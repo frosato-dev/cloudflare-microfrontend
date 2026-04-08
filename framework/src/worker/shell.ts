@@ -4,6 +4,7 @@ import { handleRequest } from '../request-handler.js';
 import { toRouteEntries } from '../router.js';
 import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
+import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
@@ -34,6 +35,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
         } catch {}
       }
 
+      const isDebug = isDebugRequest(request);
+
       const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {
         const bindingKey = `FRAGMENT_${fragmentId.toUpperCase()}`;
         const binding = env[bindingKey];
@@ -49,8 +52,14 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
-        const cached = await cache.match(cacheKey);
-        if (cached) return cached.json();
+        if (!isNoCacheRequest(request)) {
+          const cached = await cache.match(cacheKey);
+          if (cached) {
+            const result = await cached.json() as any;
+            result._meta = { cached: true };
+            return result;
+          }
+        }
 
         const res = await binding.fetch(new Request(url.toString(), { headers: req.headers }));
         const response = new Response(res.body, res);
@@ -59,15 +68,27 @@ export function createShellWorker(config: ShellWorkerConfig) {
           ctx.waitUntil(cache.put(cacheKey, response.clone()));
         }
 
-        return response.json();
+        const result = await response.json() as any;
+        result._meta = { cached: false };
+        return result;
       };
 
-      return handleRequest(request, workerFetcher, {
+      let fetcher = workerFetcher;
+      let debug: { getMeta: () => Map<string, any> } | undefined;
+
+      if (isDebug) {
+        const wrapped = wrapFetcherWithDebug(workerFetcher, Date.now());
+        fetcher = wrapped.fetcher;
+        debug = { getMeta: wrapped.getMeta };
+      }
+
+      return handleRequest(request, fetcher, {
         routes: routeEntries,
         middlewareRegistry,
         layouts: layoutRegistry,
         document: config.document,
         manifest,
+        debug,
       });
     },
   };

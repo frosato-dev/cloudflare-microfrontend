@@ -3,6 +3,7 @@ import type { Component } from 'vue';
 export interface FragmentResponse {
   html: string;
   css?: string;
+  _meta?: { cached: boolean };
 }
 
 export interface AppRoute {

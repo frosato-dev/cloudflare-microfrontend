@@ -6,7 +6,8 @@
 - [ ] Error boundary
 - [x] Move scripts into framework
 - [ ] Demo app that can show a single fragment - could be used for development and debug (has a header to secure access)
+- [ ] Add speculationrules to prefetch links
 
-# Limitations
+## Limitations
 
 - Fragment names must be uniq - Risk of name colision

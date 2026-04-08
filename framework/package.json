@@ -12,7 +12,8 @@
     "./worker": "./src/worker/index.ts",
     "./hydration": "./src/hydration/index.ts",
     "./config": "./src/config.ts",
-    "./discover": "./src/discover.ts"
+    "./discover": "./src/discover.ts",
+    "./debug": "./src/debug/index.ts"
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.1.0",

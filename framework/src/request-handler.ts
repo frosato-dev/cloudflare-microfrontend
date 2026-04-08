@@ -10,6 +10,8 @@ import type {
   Middleware,
   RouteEntry,
 } from './types.js';
+import type { FragmentMeta } from './debug/index.js';
+import { getDebugBarScript } from './debug/index.js';
 
 export interface HandleRequestConfig {
   routes: RouteEntry[];
@@ -17,6 +19,7 @@ export interface HandleRequestConfig {
   layouts: Record<string, Component>;
   document: { title: string; baseStyles?: string; viewTransitions?: boolean };
   manifest?: AssetManifest;
+  debug?: { getMeta: () => Map<string, FragmentMeta> };
 }
 
 interface ExtractedFragment {
@@ -68,7 +71,7 @@ export async function handleRequest(
   );
 
   // 3. Build client tags (fragment IDs known upfront)
-  const { headLinks, scripts } = buildClientTags(fragmentIds, config.manifest);
+  const { headLinks, scripts, linkHeaders } = buildClientTags(fragmentIds, config.manifest);
 
   // 4. Split appHtml at fragment boundaries for streaming
   const segments = splitAtFragments(appHtml);
@@ -90,6 +93,7 @@ export async function handleRequest(
 
   (async () => {
     // Stream <head> immediately — browser starts fetching CSS/JS
+    // Scripts (type="module") are deferred by spec, safe in <head>
     await writer.write(encoder.encode(
       `<!DOCTYPE html>\n<html lang="en">\n<head>\n` +
       `  <meta charset="UTF-8" />\n` +
@@ -97,6 +101,7 @@ export async function handleRequest(
       `  <title>${config.document.title}</title>\n` +
       `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
       `  ${headLinks}\n` +
+      `  ${scripts}\n` +
       `</head>\n<body>\n  <div id="app">`,
     ));
 
@@ -107,18 +112,34 @@ export async function handleRequest(
       } else {
         const result = await fragmentPromises[seg.id];
         const css = result.css ? `<style>${result.css}</style>` : '';
-        await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+        if (config.debug) {
+          const meta = config.debug.getMeta().get(seg.id);
+          const cached = meta?.cached ?? false;
+          const serverStart = meta?.fetchStart ?? 0;
+          const serverEnd = meta?.fetchEnd ?? 0;
+          // Inject debug data as data-attributes on the fragment div (hydration-safe)
+          const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
+          const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
+          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
+        } else {
+          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+        }
       }
     }
 
-    // Stream scripts + close
+    // Stream close (scripts already in <head>, debug bar needs DOM so stays here)
+    const debugBar = config.debug ? getDebugBarScript(fragmentIds) : '';
     await writer.write(encoder.encode(
-      `</div>\n  ${scripts}\n</body>\n</html>`,
+      `</div>\n${debugBar}\n</body>\n</html>`,
     ));
     await writer.close();
   })();
 
-  const headers: Record<string, string> = { 'Content-Type': 'text/html; charset=utf-8' };
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/html; charset=utf-8',
+    'X-Content-Type-Options': 'nosniff',
+    'Link': linkHeaders.join(', '),
+  };
   if (route.cache) headers['Cache-Control'] = route.cache;
   return new Response(readable, { headers });
 }
@@ -162,24 +183,40 @@ export function splitAtFragments(html: string): HtmlSegment[] {
 export function buildClientTags(
   fragmentIds: string[],
   manifest?: AssetManifest,
-): { headLinks: string; scripts: string } {
+): { headLinks: string; scripts: string; linkHeaders: string[] } {
   const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
 
+  const vueAsset = resolve('vue.js', 'vue.js');
+  const shellJs = resolve('shell.js', 'shell.js');
+  const shellCss = resolve('shell.css', 'shell.css');
+
   const links = [
-    `<link rel="stylesheet" href="/assets/${resolve('shell.css', 'shell.css')}">`,
+    `<link rel="stylesheet" href="/assets/${shellCss}">`,
     ...fragmentIds.map(
       (frag) =>
         `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
     ),
+    `<link rel="modulepreload" href="/assets/${vueAsset}">`,
   ];
-  const importMap = `<script type="importmap">${JSON.stringify({ imports: { vue: `/assets/${resolve('vue.js', 'vue.js')}` } })}</script>`;
+  const importMap = `<script type="importmap">${JSON.stringify({ imports: { vue: `/assets/${vueAsset}` } })}</script>`;
   const scripts = [
     importMap,
-    `<script type="module" src="/assets/${resolve('shell.js', 'shell.js')}"></script>`,
+    `<script type="module" src="/assets/${shellJs}"></script>`,
     ...fragmentIds.map(
       (frag) =>
         `<script type="module" src="/assets/${resolve(`fragment-${frag}.js`, `fragment-${frag}.js`)}"></script>`,
     ),
   ];
-  return { headLinks: links.join('\n'), scripts: scripts.join('\n') };
+
+  // Link headers — browser processes these before HTML body arrives
+  const linkHeaders = [
+    `</assets/${shellCss}>; rel=preload; as=style`,
+    ...fragmentIds.map(
+      (frag) => `</assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}>; rel=preload; as=style`,
+    ),
+    `</assets/${vueAsset}>; rel=modulepreload`,
+    `</assets/${shellJs}>; rel=modulepreload`,
+  ];
+
+  return { headLinks: links.join('\n'), scripts: scripts.join('\n'), linkHeaders };
 }
