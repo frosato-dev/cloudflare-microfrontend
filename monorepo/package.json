@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm -r run build",
+    "build": "NODE_OPTIONS='--import tsx/esm' pnpm -r run build",
     "build:changed": "pnpm -r --filter '...[HEAD~1]' run build",
     "preview": "pnpm run build && framework-cli preview",
     "preview:front-office": "pnpm run build && framework-cli preview --app front-office",
