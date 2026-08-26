@@ -4,7 +4,12 @@ Vue micro-frontend architecture on Cloudflare Workers. Each team owns a "fragmen
 
 Goal: prove Back Market can decompose the frontend into independently deployable micro-frontends without sacrificing SSR perf or DX.
 
-URL: <https://front-office.rosato-francois.workers.dev/>
+URL: 
+- <https://front-office.rosato-francois.workers.dev/>
+- <https://back-office.rosato-francois.workers.dev/>
+- <https://fragment-header.rosato-francois.workers.dev/>
+- <https://fragment-footer.rosato-francois.workers.dev/>
+- <https://fragment-product.rosato-francois.workers.dev/>
 
 ![Website](./framework/documentation/images/website.png)
 
