@@ -52,15 +52,6 @@ export function collectAssets(root: string) {
   // Write merged manifest
   writeFileSync(resolve(targetDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
 
-  // Also write manifest into each app's dist/server so the worker can import it
-  for (const worker of workers) {
-    if (worker.type !== 'app') continue;
-    const serverDir = resolve(worker.dir, 'dist/server');
-    if (existsSync(serverDir)) {
-      writeFileSync(resolve(serverDir, 'manifest.json'), JSON.stringify(mergedManifest, null, 2));
-    }
-  }
-
   // Write _headers file for Cloudflare static asset cache
   writeFileSync(resolve(STATIC_DIR, '_headers'), `/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n`);
 

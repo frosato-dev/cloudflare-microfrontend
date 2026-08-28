@@ -19,7 +19,7 @@ export interface HandleRequestConfig {
   layouts: Record<string, Component>;
   document: { title: string; baseStyles?: string; viewTransitions?: boolean };
   manifest?: AssetManifest;
-  debug?: { getMeta: () => Map<string, FragmentMeta> };
+  debug?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
 }
 
 interface ExtractedFragment {
@@ -96,6 +96,11 @@ export async function handleRequest(
     // 4. Extract fragments, fire all fetches in parallel
     const fragments = extractFragments(appHtml);
     const fragmentIds = fragments.map((f) => f.id);
+
+    if (config.debug) {
+      config.debug.setShellEnd(Date.now());
+    }
+
     const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
       fragments.map((f) => [
         f.id,
@@ -136,9 +141,16 @@ export async function handleRequest(
     }
 
     // Stream close: fragment scripts go after #app to avoid hydration mismatch
-    const debugBar = config.debug ? getDebugBarScript(fragmentIds) : '';
+    if (config.debug) {
+      config.debug.setTotalEnd(Date.now());
+    }
+    const debugData = config.debug ? config.debug.getMeta() : undefined;
+    const debugBar = config.debug ? getDebugBarScript(fragmentIds, debugData) : '';
+    const totalAttr = debugData ? ` data-dbg-total="${debugData.get('__total')?.fetchEnd ?? 0}"` : '';
+    const shellMeta = debugData?.get('__shell');
+    const shellAttr = shellMeta ? ` data-dbg-shell-start="${shellMeta.fetchStart}" data-dbg-shell-end="${shellMeta.fetchEnd}"` : '';
     await writer.write(encoder.encode(
-      `</div>\n${fragScripts.join('\n')}\n${debugBar}\n</body>\n</html>`,
+      `</div>${totalAttr}${shellAttr}\n${fragScripts.join('\n')}\n${debugBar}\n</body>\n</html>`,
     ));
     await writer.close();
   })();

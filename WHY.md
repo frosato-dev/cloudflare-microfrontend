@@ -1,0 +1,2 @@
+- There is no existing modern frontend framework that allow ESI and SPA
+-

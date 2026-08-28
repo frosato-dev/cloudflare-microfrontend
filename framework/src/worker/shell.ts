@@ -5,6 +5,7 @@ import { toRouteEntries } from '../router.js';
 import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
+import { handlePreviewRequest } from '../preview.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
@@ -45,7 +46,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const pageCache = caches.default;
       const pageCacheKey = new Request(request.url);
 
-        // Skip when debug is on — cached page won't have the debug bar
+      // Skip when debug is on — cached page won't have the debug bar
       if (!noCache && !isDebug) {
         const cached = await pageCache.match(pageCacheKey);
         if (cached) {
@@ -93,12 +94,19 @@ export function createShellWorker(config: ShellWorkerConfig) {
       };
 
       let fetcher = workerFetcher;
-      let debug: { getMeta: () => Map<string, any> } | undefined;
+      let debug: { getMeta: () => Map<string, any>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void } | undefined;
+      let requestStart = 0;
 
       if (isDebug) {
-        const wrapped = wrapFetcherWithDebug(workerFetcher, Date.now());
+        requestStart = Date.now();
+        const wrapped = wrapFetcherWithDebug(workerFetcher, requestStart);
         fetcher = wrapped.fetcher;
-        debug = { getMeta: wrapped.getMeta };
+        debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
+      }
+
+      const url = new URL(request.url);
+      if (url.pathname === '/__preview' || url.pathname.startsWith('/__preview/')) {
+        return handlePreviewRequest(request, fetcher, manifest, config.document);
       }
 
       const response = await handleRequest(request, fetcher, {
