@@ -25,6 +25,8 @@ Goal: prove that Back Market can break the monolith into independently deployabl
 | Understand worker internals           | [Worker Internals](internal/worker-internals.md)               |
 | Understand discovery & codegen        | [Discovery & Codegen](internal/discovery-and-codegen.md)       |
 | Understand caching internals          | [Caching Internals](internal/caching-internals.md)             |
+| Know current limitations & priorities | [Limitations](thinking/limitations.md)                         |
+| Fragment-owned assets (project)       | [Fragment-Owned Assets](thinking/project-fragment-owned-assets.md) |
 
 ## Sections
 
