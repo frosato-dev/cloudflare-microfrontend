@@ -2,9 +2,20 @@ import type { Component } from 'vue';
 
 export type LazyComponent = () => Promise<{ default: Component }>;
 
-export interface FragmentResponse {
+export interface FragmentAssets {
+  js?: string;
+  css: string[];
+}
+
+/** Inlined into the fragment worker at build time */
+export interface FragmentBuildInfo {
+  version: string;
+  vue: string;
+  assets: FragmentAssets;
+}
+
+export interface FragmentResponse extends Partial<FragmentBuildInfo> {
   html: string;
-  css?: string;
   _meta?: { cached: boolean };
 }
 

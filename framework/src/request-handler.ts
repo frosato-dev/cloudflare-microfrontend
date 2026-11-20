@@ -124,7 +124,6 @@ export async function handleRequest(
         await writer.write(encoder.encode(seg.html));
       } else {
         const result = await fragmentPromises[seg.id];
-        const css = result.css ? `<style>${result.css}</style>` : '';
         fragScripts.push(buildFragmentBodyTag(seg.id, config.manifest));
         if (config.debug) {
           const meta = config.debug.getMeta().get(seg.id);
@@ -133,9 +132,9 @@ export async function handleRequest(
           const serverEnd = meta?.fetchEnd ?? 0;
           const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
           const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
-          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
+          await writer.write(encoder.encode(`${tagWithDbg}${result.html}</div>`));
         } else {
-          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+          await writer.write(encoder.encode(`${seg.openTag}${result.html}</div>`));
         }
       }
     }

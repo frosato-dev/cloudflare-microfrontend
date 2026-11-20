@@ -21,7 +21,7 @@ Scaffold a new Vue micro-frontend fragment. The user provides the fragment name 
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --mode client"
+    "build": "vite build --mode client && vite build"
   },
   "dependencies": {
     "framework": "link:../../../../framework"

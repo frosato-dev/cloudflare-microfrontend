@@ -6,6 +6,7 @@ import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import { handlePreviewRequest } from '../preview.js';
+import { readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
@@ -75,7 +76,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         if (!noCache) {
           const cached = await cache.match(cacheKey);
           if (cached) {
-            const result = await cached.json() as any;
+            const result = await readFragmentResponse(cached);
             result._meta = { cached: true };
             return result;
           }
@@ -84,11 +85,11 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const res = await binding.fetch(new Request(url.toString(), { headers: req.headers }));
         const response = new Response(res.body, res);
 
-        if (!response.headers.get('Cache-Control')?.includes('no-cache')) {
+        if (response.ok && !response.headers.get('Cache-Control')?.includes('no-cache')) {
           ctx.waitUntil(cache.put(cacheKey, response.clone()));
         }
 
-        const result = await response.json() as any;
+        const result = await readFragmentResponse(response);
         result._meta = { cached: false };
         return result;
       };

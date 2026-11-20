@@ -1,11 +1,39 @@
 import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { resolve, basename } from 'path';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
+import { createHash } from 'crypto';
+import { createRequire } from 'module';
 import { virtualModule } from './virtual-module.ts';
+import type { FragmentBuildInfo } from '../types.ts';
 
 const VIRTUAL_ENTRY_CLIENT = 'virtual:fragment-entry-client';
 const VIRTUAL_ENTRY_SERVER = 'virtual:fragment-entry-server';
+const VIRTUAL_BUILD_INFO = 'virtual:fragment-build-info';
+const ASSET_BASE = '/assets/';
+
+/**
+ * Inlines the fragment's build info (version, vue version, client assets) into the server bundle.
+ * Reads the client manifest → client build must run before the server build.
+ * Custom entry-server.ts can `import buildInfo from 'virtual:fragment-build-info'`.
+ */
+function fragmentBuildInfoPlugin(cwd: string, fragmentId: string): Plugin {
+  return virtualModule('meta-framework:fragment-build-info', VIRTUAL_BUILD_INFO, () => {
+    const manifestPath = resolve(cwd, 'dist/client/.vite/manifest.json');
+    if (!existsSync(manifestPath)) {
+      throw new Error(`[fragment-${fragmentId}] missing ${manifestPath} — run the client build first (vite build --mode client && vite build)`);
+    }
+    const raw = readFileSync(manifestPath, 'utf-8');
+    const entry = Object.values(JSON.parse(raw) as Record<string, any>).find((e) => e.isEntry);
+    const url = (file: string) => ASSET_BASE + file;
+    const info: FragmentBuildInfo = {
+      version: `${fragmentId}@${createHash('sha256').update(raw).digest('hex').slice(0, 8)}`,
+      vue: createRequire(resolve(cwd, 'package.json'))('vue/package.json').version,
+      assets: { js: entry ? url(entry.file) : undefined, css: (entry?.css ?? []).map(url) },
+    };
+    return `export default ${JSON.stringify(info)};`;
+  });
+}
 
 function fragmentEntryClientPlugin(fragmentId: string, srcDir: string): Plugin {
   const appPath = resolve(srcDir, 'App.vue').replace(/\\/g, '/');
@@ -25,6 +53,7 @@ function fragmentEntryServerPlugin(cwd: string): Plugin {
     `import { createFragmentWorker } from 'framework/worker';`,
     `import App from '${appPath}';`,
     `import config from '${configPath}';`,
+    `import buildInfo from '${VIRTUAL_BUILD_INFO}';`,
     ``,
     `async function render(request) {`,
     `  const props = config.props ? config.props(request) : {};`,
@@ -33,7 +62,7 @@ function fragmentEntryServerPlugin(cwd: string): Plugin {
     `  return { html };`,
     `}`,
     ``,
-    `export default createFragmentWorker(render, config.cache ?? 'private, no-cache');`,
+    `export default createFragmentWorker(render, config.cache ?? 'private, no-cache', buildInfo);`,
   ].join('\n'));
 }
 
@@ -76,7 +105,7 @@ export function defineFragmentConfig(name?: string) {
 
     if (hasConfig) {
       return {
-        plugins: [vue(), fragmentEntryServerPlugin(cwd)],
+        plugins: [vue(), fragmentEntryServerPlugin(cwd), fragmentBuildInfoPlugin(cwd, fragmentId)],
         build: {
           ssr: true,
           outDir: 'dist/server',
@@ -90,7 +119,7 @@ export function defineFragmentConfig(name?: string) {
     }
 
     return {
-      plugins: [vue()],
+      plugins: [vue(), fragmentBuildInfoPlugin(cwd, fragmentId)],
       build: {
         ssr: 'src/entry-server.ts',
         outDir: 'dist/server',
