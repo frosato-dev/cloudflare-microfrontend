@@ -6,11 +6,27 @@ import { createHash } from 'crypto';
 import { createRequire } from 'module';
 import { virtualModule } from './virtual-module.ts';
 import type { FragmentBuildInfo } from '../types.ts';
+import { FRAGMENT_ASSET_PREFIX } from '../fragment-protocol.ts';
 
 const VIRTUAL_ENTRY_CLIENT = 'virtual:fragment-entry-client';
 const VIRTUAL_ENTRY_SERVER = 'virtual:fragment-entry-server';
 const VIRTUAL_BUILD_INFO = 'virtual:fragment-build-info';
-const ASSET_BASE = '/assets/';
+/**
+ * Public base URL of fragment client assets (files live under `<base>/<fragmentId>/`).
+ * Default: same-origin path, served by shell → fragment worker. Prod with CDN: FRAGMENT_ASSET_BASE=https://static.example.com
+ */
+const ASSET_BASE = (process.env.FRAGMENT_ASSET_BASE || FRAGMENT_ASSET_PREFIX).replace(/\/$/, '') + '/';
+
+/** Extra files for the fragment's Workers static assets: immutable caching, keep the Vite manifest private */
+function fragmentStaticFilesPlugin(): Plugin {
+  return {
+    name: 'meta-framework:fragment-static-files',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: '_headers', source: '/*\n  Cache-Control: public, max-age=31536000, immutable\n' });
+      this.emitFile({ type: 'asset', fileName: '.assetsignore', source: '.vite\n.assetsignore\n' });
+    },
+  };
+}
 
 /**
  * Inlines the fragment's build info (version, vue version, client assets) into the server bundle.
@@ -50,14 +66,14 @@ function fragmentEntryServerPlugin(cwd: string): Plugin {
   return virtualModule('meta-framework:fragment-entry-server', VIRTUAL_ENTRY_SERVER, () => [
     `import { createSSRApp } from 'vue';`,
     `import { renderToString } from 'vue/server-renderer';`,
-    `import { createFragmentWorker } from 'framework/worker';`,
+    `import { createFragmentWorker, fragmentRoot } from 'framework/worker';`,
     `import App from '${appPath}';`,
     `import config from '${configPath}';`,
     `import buildInfo from '${VIRTUAL_BUILD_INFO}';`,
     ``,
     `async function render(request) {`,
     `  const props = config.props ? config.props(request) : {};`,
-    `  const app = createSSRApp(App, props);`,
+    `  const app = createSSRApp(fragmentRoot(App, props, buildInfo.assets.css));`,
     `  const html = await renderToString(app);`,
     `  return { html };`,
     `}`,
@@ -86,7 +102,8 @@ export function defineFragmentConfig(name?: string) {
   return defineConfig(({ mode }) => {
     if (mode === 'client') {
       return {
-        plugins: [vue(), fragmentEntryClientPlugin(fragmentId, resolve(cwd, 'src'))],
+        plugins: [vue(), fragmentEntryClientPlugin(fragmentId, resolve(cwd, 'src')), fragmentStaticFilesPlugin()],
+        base: ASSET_BASE,
         build: {
           outDir: 'dist/client',
           manifest: true,
@@ -94,8 +111,9 @@ export function defineFragmentConfig(name?: string) {
             input: clientInput,
             external: ['vue'],
             output: {
-              entryFileNames: `${resolvedName}.[hash].js`,
-              assetFileNames: `${resolvedName}.[hash].[ext]`,
+              entryFileNames: `${fragmentId}/${resolvedName}.[hash].js`,
+              chunkFileNames: `${fragmentId}/[name].[hash].js`,
+              assetFileNames: `${fragmentId}/${resolvedName}.[hash].[ext]`,
               format: 'es' as const,
             },
           },

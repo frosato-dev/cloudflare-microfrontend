@@ -1,5 +1,8 @@
 import type { FragmentBuildInfo, FragmentResponse } from './types.js';
 
+/** Same-origin path where fragment client assets are served: /_fragments/<id>/<file> (shell → fragment worker) */
+export const FRAGMENT_ASSET_PREFIX = '/_fragments';
+
 /** Shell ↔ fragment wire contract: body = raw HTML, build info in headers */
 export const FRAGMENT_HEADERS = {
   version: 'X-Fragment-Version',

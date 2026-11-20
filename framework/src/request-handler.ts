@@ -5,6 +5,7 @@ import { matchRoute } from './router.js';
 import { runMiddleware } from './middleware.js';
 import type {
   AssetManifest,
+  FragmentAssets,
   FragmentFetcher,
   FragmentResponse,
   Middleware,
@@ -108,12 +109,8 @@ export async function handleRequest(
       ]),
     );
 
-    // Phase 2: flush fragment CSS (keep in head for FOUC) + close </head>
-    const fragCss = buildFragmentHeadTags(fragmentIds, config.manifest);
-    await writer.write(encoder.encode(
-      `  ${fragCss}\n` +
-      `</head>\n<body>\n  <div id="app">`,
-    ));
+    // Phase 2: close </head> — fragment CSS ships inside each fragment's HTML (fragmentRoot)
+    await writer.write(encoder.encode(`</head>\n<body>\n  <div id="app">`));
 
     // 5. Stream body: static parts flush immediately, fragments await in doc order
     // Collect fragment scripts to emit OUTSIDE #app (avoids hydration mismatch)
@@ -124,7 +121,7 @@ export async function handleRequest(
         await writer.write(encoder.encode(seg.html));
       } else {
         const result = await fragmentPromises[seg.id];
-        fragScripts.push(buildFragmentBodyTag(seg.id, config.manifest));
+        fragScripts.push(fragmentScriptTag(result.assets));
         if (config.debug) {
           const meta = config.debug.getMeta().get(seg.id);
           const cached = meta?.cached ?? false;
@@ -229,23 +226,7 @@ export function buildShellTags(
   return { headLinks: links.join('\n'), scripts: scripts.join('\n'), linkHeaders };
 }
 
-/** Fragment CSS — stays in <head> to prevent FOUC */
-export function buildFragmentHeadTags(
-  fragmentIds: string[],
-  manifest?: AssetManifest,
-): string {
-  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
-  return fragmentIds.map(
-    (frag) =>
-      `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
-  ).join('\n');
-}
-
-/** Single fragment script — emitted inline after its DOM */
-export function buildFragmentBodyTag(
-  fragmentId: string,
-  manifest?: AssetManifest,
-): string {
-  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
-  return `<script type="module" src="/assets/${resolve(`fragment-${fragmentId}.js`, `fragment-${fragmentId}.js`)}"></script>`;
+/** Fragment entry script, from the fragment's own response (same deploy as its HTML) */
+export function fragmentScriptTag(assets?: FragmentAssets): string {
+  return assets?.js ? `<script type="module" src="${assets.js}"></script>` : '';
 }

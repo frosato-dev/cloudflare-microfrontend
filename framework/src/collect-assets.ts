@@ -4,7 +4,8 @@ import { discoverWorkers } from './discover.ts';
 
 export function collectAssets(root: string) {
   const STATIC_DIR = resolve(root, 'dist/static');
-  const workers = discoverWorkers(root);
+  // Fragments serve their own assets (/_fragments/<id>/*) — only shell apps are collected here
+  const workers = discoverWorkers(root).filter((w) => w.type === 'app');
 
   rmSync(STATIC_DIR, { recursive: true, force: true });
   const targetDir = resolve(STATIC_DIR, 'assets');

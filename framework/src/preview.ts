@@ -1,18 +1,8 @@
-import { buildShellTags, buildFragmentHeadTags, buildFragmentBodyTag } from './request-handler.js';
-import type { AssetManifest, FragmentFetcher } from './types.js';
+import { buildShellTags, fragmentScriptTag } from './request-handler.js';
+import type { AssetManifest, FragmentAssets, FragmentFetcher } from './types.js';
 
 const defaultBaseStyles = `* { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; }`;
-
-function discoverFragmentIds(manifest?: AssetManifest): string[] {
-  if (!manifest) return [];
-  const ids = new Set<string>();
-  for (const key of Object.keys(manifest)) {
-    const match = key.match(/^fragment-(.+)\.js$/);
-    if (match) ids.add(match[1]);
-  }
-  return [...ids].sort();
-}
 
 function previewIndexHtml(fragmentIds: string[]): string {
   const list = fragmentIds.length
@@ -44,12 +34,12 @@ function previewFragmentHtml(
   fragmentId: string,
   html: string,
   props: Record<string, string>,
+  assets: FragmentAssets | undefined,
   manifest?: AssetManifest,
   document?: { title: string; baseStyles?: string },
 ): string {
   const { headLinks: shellLinks, scripts: shellScripts } = buildShellTags(manifest);
-  const fragCss = buildFragmentHeadTags([fragmentId], manifest);
-  const fragScript = buildFragmentBodyTag(fragmentId, manifest);
+  const fragScript = fragmentScriptTag(assets);
   const baseStyles = document?.baseStyles || defaultBaseStyles;
   const propsJson = JSON.stringify(props);
   const escapedProps = propsJson.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -63,7 +53,6 @@ function previewFragmentHtml(
   ${baseStyles ? `<style>${baseStyles}</style>` : ''}
   ${shellLinks}
   ${shellScripts}
-  ${fragCss}
 </head>
 <body>
   <div data-fragment="${fragmentId}" data-props="${escapedProps}" data-allow-mismatch>${html}</div>
@@ -75,6 +64,7 @@ function previewFragmentHtml(
 export function handlePreviewRequest(
   request: Request,
   fetchFragment: FragmentFetcher,
+  fragmentIds: string[],
   manifest?: AssetManifest,
   document?: { title: string; baseStyles?: string },
 ): Response {
@@ -82,8 +72,7 @@ export function handlePreviewRequest(
   const pathname = url.pathname;
 
   if (pathname === '/__preview') {
-    const ids = discoverFragmentIds(manifest);
-    return new Response(previewIndexHtml(ids), {
+    return new Response(previewIndexHtml([...fragmentIds].sort()), {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   }
@@ -107,7 +96,7 @@ export function handlePreviewRequest(
         const encoder = new TextEncoder();
         try {
           const result = await fragmentPromise;
-          const html = previewFragmentHtml(fragmentId, result.html, routeProps, manifest, document);
+          const html = previewFragmentHtml(fragmentId, result.html, routeProps, result.assets, manifest, document);
           controller.enqueue(encoder.encode(html));
           controller.close();
         } catch (err: any) {

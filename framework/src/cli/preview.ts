@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import { rmSync } from 'fs';
+import { resolve } from 'path';
 import { collectAssets } from '../collect-assets.ts';
 import { discoverWorkers, generateAppWranglerConfigs } from '../discover.ts';
 import { parseArg } from './args.ts';
@@ -17,6 +19,10 @@ export function preview(root: string, args: string[]) {
     console.error(`App "${appFilter}" not found. Available: ${allApps.map((w) => w.name).join(', ')}`);
     process.exit(1);
   }
+
+  // Start with an empty local Workers cache: cached pages/fragments from a previous build
+  // would reference assets that no longer exist
+  rmSync(resolve(app.dir, '.wrangler/state/v3/cache'), { recursive: true, force: true });
 
   const fragments = workers.filter((w) => w.type === 'fragment');
   const fragmentArgs = fragments.map((w) => `-c ${w.wranglerConfig}`).join(' ');

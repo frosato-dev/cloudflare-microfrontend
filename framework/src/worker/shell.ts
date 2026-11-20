@@ -6,7 +6,7 @@ import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import { handlePreviewRequest } from '../preview.js';
-import { readFragmentResponse } from '../fragment-protocol.js';
+import { FRAGMENT_ASSET_PREFIX, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
@@ -35,6 +35,15 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
   return {
     async fetch(request: Request, env: Record<string, { fetch: typeof fetch }>, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
+      const url = new URL(request.url);
+
+      // Fragment client assets: /_fragments/<id>/* → owning fragment worker
+      if (url.pathname.startsWith(FRAGMENT_ASSET_PREFIX + '/')) {
+        const id = url.pathname.slice(FRAGMENT_ASSET_PREFIX.length + 1).split('/')[0];
+        const binding = env[`FRAGMENT_${id.toUpperCase()}`];
+        return binding ? binding.fetch(request) : new Response('Not Found', { status: 404 });
+      }
+
       if (!manifest && (env as any).ASSETS) {
         try {
           const res = await (env as any).ASSETS.fetch(new Request('https://dummy/assets/manifest.json'));
@@ -105,9 +114,11 @@ export function createShellWorker(config: ShellWorkerConfig) {
         debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
       }
 
-      const url = new URL(request.url);
       if (url.pathname === '/__preview' || url.pathname.startsWith('/__preview/')) {
-        return handlePreviewRequest(request, fetcher, manifest, config.document);
+        const fragmentIds = Object.keys(env)
+          .filter((k) => k.startsWith('FRAGMENT_'))
+          .map((k) => k.slice('FRAGMENT_'.length).toLowerCase());
+        return handlePreviewRequest(request, fetcher, fragmentIds, manifest, config.document);
       }
 
       const response = await handleRequest(request, fetcher, {
