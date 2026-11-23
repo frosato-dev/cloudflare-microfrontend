@@ -136,7 +136,7 @@ Auto-generated service bindings map fragments to env bindings:
   "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "../../../dist/static",
+    "directory": "dist/static",
     "binding": "ASSETS",
     "html_handling": "none",
   },
