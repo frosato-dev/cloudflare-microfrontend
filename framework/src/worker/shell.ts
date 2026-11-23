@@ -11,6 +11,7 @@ import type { Component } from 'vue';
 import type {
   AppRoute,
   AssetManifest,
+  FragmentAssets,
   FragmentFetcher,
   Middleware,
 } from '../types.js';
@@ -31,6 +32,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
   const routeEntries = toRouteEntries(config.routes);
   const middlewareRegistry = buildMiddlewareRegistry(config.middleware);
   const layoutRegistry = buildLayoutRegistry(config.layouts);
+  const knownAssets = new Map<string, FragmentAssets>();
   let manifest: AssetManifest | undefined;
 
   return {
@@ -127,6 +129,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         layouts: layoutRegistry,
         document: config.document,
         manifest,
+        knownAssets,
         debug,
       });
 
