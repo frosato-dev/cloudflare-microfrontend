@@ -63,7 +63,7 @@ framework-cli deploy [--since <ref>] [--all]
 ```
 
 1. `generateAppWranglerConfigs(root)` — update service bindings
-2. `collectAssets(root)` — always runs (needs all manifests)
+2. `collectAssets(root)`: shell (app) assets only. Fragment assets deploy with each fragment Worker.
 3. Determine deploy scope:
    - `--all` → all workers
    - `--since <ref>` → only `getChangedPackages()` results
@@ -80,7 +80,8 @@ framework-cli preview [--app <name>] [--port <port>]
 
 1. `generateAppWranglerConfigs(root)`
 2. `collectAssets(root)`
-3. Build wrangler CLI args: `-c <app-config> -c <frag1-config> -c <frag2-config> ...`
-4. Run `wrangler dev ${configArgs} --port ${port}`
+3. Clear the app's local Workers cache
+4. Build wrangler CLI args: `-c <app-config> -c <frag1-config> -c <frag2-config> ...`
+5. Run `wrangler dev ${configArgs} --port ${port}`
 
 All workers (app + fragments) run in a single wrangler dev process with multi-worker mode.

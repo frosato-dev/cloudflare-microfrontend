@@ -34,6 +34,20 @@ export function hydrateShell(config: {
   let isInitialNav = true;
   let navId = 0;
 
+  const moduleSrcs = (root: ParentNode) =>
+    [...root.querySelectorAll('script[type="module"][src]')].map((s) => s.getAttribute('src')!);
+  const loadedScripts = new Set(moduleSrcs(document));
+
+  // Lazy chunk of a previous deploy is gone → reload to get current HTML (guarded against loops)
+  window.addEventListener('vite:preloadError', () => {
+    try {
+      const last = Number(sessionStorage.getItem('__fragment_reload') || 0);
+      if (Date.now() - last < 10_000) return;
+      sessionStorage.setItem('__fragment_reload', String(Date.now()));
+    } catch {}
+    location.reload();
+  });
+
   // Intercept <a> clicks for SPA navigation
   document.addEventListener('click', (e) => {
     const link = (e.target as Element).closest('a[href]');
@@ -56,6 +70,17 @@ export function hydrateShell(config: {
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     const registry = (globalThis as any).__fragmentRegistry || {};
+
+    // Version skew: shell or a live fragment was redeployed → loaded JS doesn't match new HTML → full load
+    const shellChanged = moduleSrcs(doc.head).join() !== moduleSrcs(document.head).join();
+    const fragmentChanged = [...doc.querySelectorAll<HTMLElement>('[data-fragment]')].some((el) => {
+      const loaded = registry[el.dataset.fragment!]?.version;
+      return loaded && el.dataset.fragmentVersion && loaded !== el.dataset.fragmentVersion;
+    });
+    if (shellChanged || fragmentChanged) {
+      location.assign(to.fullPath);
+      return;
+    }
 
     // Build source map from fetched HTML
     const newFragments = new Map<string, Element>();
@@ -84,6 +109,8 @@ export function hydrateShell(config: {
       if (entry?.app) { entry.app.unmount(); entry.app = null; }
       el.innerHTML = source.innerHTML;
       (el as HTMLElement).dataset.props = newProps;
+      const newVersion = (source as HTMLElement).dataset.fragmentVersion;
+      if (newVersion) (el as HTMLElement).dataset.fragmentVersion = newVersion;
     });
 
     // Inject CSS links from new page that aren't already loaded
@@ -95,13 +122,15 @@ export function hydrateShell(config: {
       }
     });
 
-    // Load scripts for new fragments not yet registered
-    const newScripts = doc.querySelectorAll('script[type="module"][src]');
-    for (const script of newScripts) {
-      const src = script.getAttribute('src')!;
-      const match = src.match(/fragment-([^/.]+)/);
-      if (match && !registry[match[1]]) {
+    // Load scripts of fragments new to this page (URLs come from each fragment's own response)
+    for (const src of moduleSrcs(doc.body)) {
+      if (loadedScripts.has(src)) continue;
+      loadedScripts.add(src);
+      try {
         await import(/* @vite-ignore */ src);
+      } catch {
+        location.assign(to.fullPath); // asset gone (old deploy) → full load
+        return;
       }
     }
     if (currentNav !== navId) return; // stale nav, abort

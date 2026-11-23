@@ -47,7 +47,7 @@ flowchart TB
     EF -->|"service binding\nFRAGMENT_HEADER"| FH
     EF -->|"service binding\nFRAGMENT_FOOTER"| FF
     EF -->|"service binding\nFRAGMENT_PRODUCT"| FP
-    FH & FF & FP -->|JSON response| ST
+    FH & FF & FP -->|"HTML + X-Fragment-* headers"| ST
     ST -->|"streaming HTML"| H
     H -->|"fetch /assets/*"| ASSETS
     Shell <-->|"page + fragment cache"| CACHE

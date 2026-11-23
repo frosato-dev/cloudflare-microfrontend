@@ -129,7 +129,11 @@ sequenceDiagram
 | Function | Output | Location |
 |----------|--------|----------|
 | `buildShellTags(manifest)` | Shell CSS link, Vue modulepreload, import map, shell JS | `<head>` (Phase 1) |
-| `buildFragmentHeadTags(ids, manifest)` | Fragment CSS links | `<head>` (Phase 2) |
-| `buildFragmentBodyTag(id, manifest)` | Fragment JS `<script type="module">` | After `</div id="app">` |
+| `buildPreconnectTags(origin, knownAssets)` | `preconnect` to cross-origin fragment asset hosts | `<head>` (Phase 1) |
+| `buildFragmentPreloadTags(ids, knownAssets)` | Fragment CSS `preload` and JS `modulepreload`, from assets seen on previous requests | `<head>` (Phase 2) |
+| `fragmentScriptTag(assets)` | Fragment JS `<script type="module">`, from the fragment's response | After `</div id="app">` |
 
-All resolve logical names (e.g. `shell.js`) to hashed filenames via the asset manifest.
+- `buildShellTags` resolves logical names (e.g. `shell.js`) to hashed filenames through the shell asset manifest.
+- Fragment tags use the `X-Fragment-Assets` header of each fragment response, so the fragment's HTML and JS always come from the same deploy.
+- Fragment CSS `<link>` tags are rendered by the fragment itself (`fragmentRoot`), inside its container.
+- If a fragment's `X-Fragment-Vue` has a different major.minor than the shell's Vue, its script is skipped: its server-rendered HTML stays, without hydration.

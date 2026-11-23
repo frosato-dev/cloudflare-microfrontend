@@ -16,13 +16,15 @@ cacheUrl.searchParams.set('__fragment', fragmentId);
 const cacheKey = new Request(cacheUrl.toString());
 ```
 
-Example: `https://example.com/product/42?__fragment=header`
+Example: `https://example.com/product/42?__fragment=header&__fp=2`
+
+`__fp` = `FRAGMENT_PROTOCOL` (`fragment-protocol.ts`). The page cache key gets it too. Bump it on any incompatible shell ↔ fragment protocol change, so entries cached by the previous protocol are never read.
 
 **Read**: before fetching the fragment worker
 ```ts
 const cached = await cache.match(cacheKey);
 if (cached) {
-  const result = await cached.json();
+  const result = await readFragmentResponse(cached); // HTML body + X-Fragment-* headers
   result._meta = { cached: true };
   return result;
 }

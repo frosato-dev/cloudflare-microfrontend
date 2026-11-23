@@ -1,9 +1,12 @@
 import { createSSRApp, createApp, type Component, type App } from 'vue';
+import { fragmentRoot } from '../fragment-root.ts';
 
 export interface FragmentEntry {
   mount: (container: Element) => void;
   app: App | null;
   hydratedProps: string;
+  /** data-fragment-version of the mounted HTML (same deploy as the loaded JS) */
+  version?: string;
 }
 
 export function hydrateFragment(id: string, App: Component) {
@@ -21,12 +24,16 @@ function mountFragment(id: string, App: Component, container: Element | null, ss
   if (!container) return;
   const registry: Record<string, FragmentEntry> = (globalThis as any).__fragmentRegistry;
   const props = JSON.parse((container as HTMLElement).dataset.props || '{}');
+  // Keep the fragment's own stylesheet links (rendered server-side by fragmentRoot)
+  const css = [...container.querySelectorAll(':scope > link[rel="stylesheet"]')].map((l) => l.getAttribute('href')!);
   if (!ssr) container.innerHTML = '';
-  const app = ssr ? createSSRApp(App, props) : createApp(App, props);
+  const root = fragmentRoot(App, props, css);
+  const app = ssr ? createSSRApp(root) : createApp(root);
   app.mount(container);
   if (registry[id]) {
     registry[id].app = app;
     registry[id].hydratedProps = (container as HTMLElement).dataset.props || '{}';
+    registry[id].version = (container as HTMLElement).dataset.fragmentVersion;
   }
   console.log(`[fragment-${id}] hydrated`);
 }

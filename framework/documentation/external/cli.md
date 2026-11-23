@@ -19,8 +19,9 @@ framework-cli preview [--app <name>] [--port <port>]
 
 **What it does:**
 1. `generateAppWranglerConfigs()` — auto-generates service bindings
-2. `collectAssets()` — merges all client builds into `dist/static/`
-3. Starts `wrangler dev` with all fragment + app wrangler configs
+2. `collectAssets()`: merges the app (shell) client builds into `dist/static/`. Fragments serve their own assets.
+3. Clears the app's local Workers cache (`.wrangler/state/v3/cache`)
+4. Starts `wrangler dev` with all fragment and app wrangler configs
 
 ### `framework-cli deploy`
 
@@ -37,7 +38,7 @@ framework-cli deploy [--since <ref>] [--all]
 
 **What it does:**
 1. `generateAppWranglerConfigs()` — auto-generates service bindings
-2. `collectAssets()` — merges all client builds
+2. `collectAssets()`: merges the app (shell) client builds. Fragment assets are deployed with each fragment Worker.
 3. If `--since`: runs `getChangedPackages()` to diff git history
    - If `framework/src/` (non-CLI) changed → deploys all workers
    - Otherwise → only changed packages

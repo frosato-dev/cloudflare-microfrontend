@@ -6,10 +6,12 @@ import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import { handlePreviewRequest } from '../preview.js';
+import { FRAGMENT_ASSET_PREFIX, FRAGMENT_PROTOCOL, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
   AssetManifest,
+  FragmentAssets,
   FragmentFetcher,
   Middleware,
 } from '../types.js';
@@ -30,10 +32,20 @@ export function createShellWorker(config: ShellWorkerConfig) {
   const routeEntries = toRouteEntries(config.routes);
   const middlewareRegistry = buildMiddlewareRegistry(config.middleware);
   const layoutRegistry = buildLayoutRegistry(config.layouts);
+  const knownAssets = new Map<string, FragmentAssets>();
   let manifest: AssetManifest | undefined;
 
   return {
     async fetch(request: Request, env: Record<string, { fetch: typeof fetch }>, ctx: { waitUntil: (p: Promise<any>) => void }): Promise<Response> {
+      const url = new URL(request.url);
+
+      // Fragment client assets: /_fragments/<id>/* → owning fragment worker
+      if (url.pathname.startsWith(FRAGMENT_ASSET_PREFIX + '/')) {
+        const id = url.pathname.slice(FRAGMENT_ASSET_PREFIX.length + 1).split('/')[0];
+        const binding = env[`FRAGMENT_${id.toUpperCase()}`];
+        return binding ? binding.fetch(request) : new Response('Not Found', { status: 404 });
+      }
+
       if (!manifest && (env as any).ASSETS) {
         try {
           const res = await (env as any).ASSETS.fetch(new Request('https://dummy/assets/manifest.json'));
@@ -44,7 +56,9 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const isDebug = isDebugRequest(request);
       const noCache = isNoCacheRequest(request);
       const pageCache = caches.default;
-      const pageCacheKey = new Request(request.url);
+      const pageCacheUrl = new URL(request.url);
+      pageCacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+      const pageCacheKey = new Request(pageCacheUrl.toString());
 
       // Skip when debug is on — cached page won't have the debug bar
       if (!noCache && !isDebug) {
@@ -69,13 +83,14 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
         const cacheUrl = new URL(url.toString());
         cacheUrl.searchParams.set('__fragment', fragmentId);
+        cacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
         if (!noCache) {
           const cached = await cache.match(cacheKey);
           if (cached) {
-            const result = await cached.json() as any;
+            const result = await readFragmentResponse(cached);
             result._meta = { cached: true };
             return result;
           }
@@ -84,11 +99,11 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const res = await binding.fetch(new Request(url.toString(), { headers: req.headers }));
         const response = new Response(res.body, res);
 
-        if (!response.headers.get('Cache-Control')?.includes('no-cache')) {
+        if (response.ok && !response.headers.get('Cache-Control')?.includes('no-cache')) {
           ctx.waitUntil(cache.put(cacheKey, response.clone()));
         }
 
-        const result = await response.json() as any;
+        const result = await readFragmentResponse(response);
         result._meta = { cached: false };
         return result;
       };
@@ -104,9 +119,11 @@ export function createShellWorker(config: ShellWorkerConfig) {
         debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
       }
 
-      const url = new URL(request.url);
       if (url.pathname === '/__preview' || url.pathname.startsWith('/__preview/')) {
-        return handlePreviewRequest(request, fetcher, manifest, config.document);
+        const fragmentIds = Object.keys(env)
+          .filter((k) => k.startsWith('FRAGMENT_'))
+          .map((k) => k.slice('FRAGMENT_'.length).toLowerCase());
+        return handlePreviewRequest(request, fetcher, fragmentIds, manifest, config.document);
       }
 
       const response = await handleRequest(request, fetcher, {
@@ -115,6 +132,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         layouts: layoutRegistry,
         document: config.document,
         manifest,
+        knownAssets,
         debug,
       });
 

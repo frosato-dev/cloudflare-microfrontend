@@ -1,10 +1,11 @@
-import { createSSRApp, h } from 'vue';
+import { createSSRApp, h, version as vueVersion } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import type { Component } from 'vue';
 import { matchRoute } from './router.js';
 import { runMiddleware } from './middleware.js';
 import type {
   AssetManifest,
+  FragmentAssets,
   FragmentFetcher,
   FragmentResponse,
   Middleware,
@@ -19,6 +20,8 @@ export interface HandleRequestConfig {
   layouts: Record<string, Component>;
   document: { title: string; baseStyles?: string; viewTransitions?: boolean };
   manifest?: AssetManifest;
+  /** Latest assets seen per fragment (isolate memory) — best-effort <head> preloads; stale = one wasted preload */
+  knownAssets?: Map<string, FragmentAssets>;
   debug?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
 }
 
@@ -81,7 +84,8 @@ export async function handleRequest(
       `  <title>${config.document.title}</title>\n` +
       `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
       `  ${shellLinks}\n` +
-      `  ${shellScripts}\n`,
+      `  ${shellScripts}\n` +
+      buildPreconnectTags(url.origin, config.knownAssets),
     ));
 
     // 3. Resolve lazy component + SSR render (browser already fetching shell assets)
@@ -108,10 +112,10 @@ export async function handleRequest(
       ]),
     );
 
-    // Phase 2: flush fragment CSS (keep in head for FOUC) + close </head>
-    const fragCss = buildFragmentHeadTags(fragmentIds, config.manifest);
+    // Phase 2: preload known fragment assets + close </head>
+    // (authoritative CSS links ship inside each fragment's HTML via fragmentRoot)
     await writer.write(encoder.encode(
-      `  ${fragCss}\n` +
+      buildFragmentPreloadTags(fragmentIds, config.knownAssets) +
       `</head>\n<body>\n  <div id="app">`,
     ));
 
@@ -124,18 +128,26 @@ export async function handleRequest(
         await writer.write(encoder.encode(seg.html));
       } else {
         const result = await fragmentPromises[seg.id];
-        const css = result.css ? `<style>${result.css}</style>` : '';
-        fragScripts.push(buildFragmentBodyTag(seg.id, config.manifest));
+        if (result.assets) config.knownAssets?.set(seg.id, result.assets);
+        if (isVueCompatible(result.vue)) {
+          fragScripts.push(fragmentScriptTag(result.assets));
+        } else {
+          // SSR HTML stays, hydration skipped — a fragment built against another Vue minor must not run on the shell's Vue
+          console.error(`[fragment-${seg.id}] built with vue ${result.vue}, shell serves ${vueVersion} — hydration skipped`);
+        }
+        const openTag = result.version
+          ? seg.openTag.replace(/>$/, ` data-fragment-version="${escapeAttr(result.version)}">`)
+          : seg.openTag;
         if (config.debug) {
           const meta = config.debug.getMeta().get(seg.id);
           const cached = meta?.cached ?? false;
           const serverStart = meta?.fetchStart ?? 0;
           const serverEnd = meta?.fetchEnd ?? 0;
           const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
-          const tagWithDbg = seg.openTag.replace('>', dbgAttrs + '>');
-          await writer.write(encoder.encode(`${css}${tagWithDbg}${result.html}</div>`));
+          const tagWithDbg = openTag.replace(/>$/, dbgAttrs + '>');
+          await writer.write(encoder.encode(`${tagWithDbg}${result.html}</div>`));
         } else {
-          await writer.write(encoder.encode(`${css}${seg.openTag}${result.html}</div>`));
+          await writer.write(encoder.encode(`${openTag}${result.html}</div>`));
         }
       }
     }
@@ -230,23 +242,41 @@ export function buildShellTags(
   return { headLinks: links.join('\n'), scripts: scripts.join('\n'), linkHeaders };
 }
 
-/** Fragment CSS — stays in <head> to prevent FOUC */
-export function buildFragmentHeadTags(
-  fragmentIds: string[],
-  manifest?: AssetManifest,
-): string {
-  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
-  return fragmentIds.map(
-    (frag) =>
-      `<link rel="stylesheet" href="/assets/${resolve(`fragment-${frag}.css`, `fragment-${frag}.css`)}">`,
-  ).join('\n');
+const majorMinor = (v: string) => v.split('.').slice(0, 2).join('.');
+
+/** Same major.minor as the shell's Vue (SFC output may use runtime helpers added in a minor). Unknown → allowed */
+export function isVueCompatible(fragmentVue?: string): boolean {
+  return !fragmentVue || majorMinor(fragmentVue) === majorMinor(vueVersion);
 }
 
-/** Single fragment script — emitted inline after its DOM */
-export function buildFragmentBodyTag(
-  fragmentId: string,
-  manifest?: AssetManifest,
-): string {
-  const resolve = (key: string, fallback: string) => manifest?.[key] || fallback;
-  return `<script type="module" src="/assets/${resolve(`fragment-${fragmentId}.js`, `fragment-${fragmentId}.js`)}"></script>`;
+const escapeAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+/** preconnect to cross-origin fragment asset hosts (e.g. static.<domain>) */
+export function buildPreconnectTags(pageOrigin: string, knownAssets?: Map<string, FragmentAssets>): string {
+  const origins = new Set<string>();
+  for (const assets of knownAssets?.values() ?? []) {
+    for (const href of [assets.js, ...assets.css]) {
+      if (!href || !/^https?:/.test(href)) continue;
+      const origin = new URL(href).origin;
+      if (origin !== pageOrigin) origins.add(origin);
+    }
+  }
+  return [...origins].map((o) => `  <link rel="preconnect" href="${o}" crossorigin>\n`).join('');
+}
+
+/** Best-effort preloads for this page's fragments, from assets seen on previous requests */
+export function buildFragmentPreloadTags(fragmentIds: string[], knownAssets?: Map<string, FragmentAssets>): string {
+  return fragmentIds.map((id) => {
+    const assets = knownAssets?.get(id);
+    if (!assets) return '';
+    return [
+      ...assets.css.map((href) => `  <link rel="preload" as="style" href="${href}">\n`),
+      assets.js ? `  <link rel="modulepreload" href="${assets.js}">\n` : '',
+    ].join('');
+  }).join('');
+}
+
+/** Fragment entry script, from the fragment's own response (same deploy as its HTML) */
+export function fragmentScriptTag(assets?: FragmentAssets): string {
+  return assets?.js ? `<script type="module" src="${assets.js}"></script>` : '';
 }
