@@ -25,6 +25,7 @@ export default defineApplicationConfig({
     baseStyles: "...", // Optional — injected in <head> <style>
     viewTransitions: true, // Enable View Transitions API
   },
+  fragmentTimeout: 1000, // Optional — ms per fragment before it renders empty (see Observability)
 });
 ```
 
@@ -37,6 +38,7 @@ interface ApplicationConfig {
     baseStyles?: string;
     viewTransitions?: boolean;
   };
+  fragmentTimeout?: number; // default 1000
 }
 ```
 

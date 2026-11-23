@@ -23,13 +23,13 @@ Known limitations of the current implementation, measured against the north star
 6. **Fragments can't contain other fragments.**
 7. **No shared Vue plugins** (router, store, i18n) inside fragments, and the shell intercepts every `<a>` click.
 8. **Untyped pub-sub**: cross-fragment events are untyped `window` CustomEvents, and an event sent before the listening fragment hydrates is lost.
-9. **No observability per fragment or per team**: no tracing, error attribution or latency metrics outside the debug bar.
+9. **No observability per fragment or per team**: no tracing, error attribution or latency metrics outside the debug bar. *Partly addressed: structured logs per fragment and RUM with fragment attribution (see [Observability](../external/observability.md)). Still missing: distributed tracing, and dashboards or alerts per team.*
 
 ## Web performance: server
 
 10. **Waterfall**: fragments are discovered only after the shell finishes its server render (`renderToString`, then regex extraction).
 11. **Head-of-line blocking**: fragments are awaited in document order, so one slow fragment delays everything after it.
-12. **No timeout or error boundary**: a failing fragment breaks the whole stream.
+12. **No timeout or error boundary**: a failing fragment breaks the whole stream. *Addressed: every fragment has a time limit and its errors are caught. A failure gives an empty slot with a client-side fallback, and the page isn't cached (see [Observability](../external/observability.md)).*
 13. **Fragment HTML is wrapped in JSON and fully buffered**, so it isn't streamed through.
 14. **Each fragment is one subrequest**, plus a possible cold start. Cost and Workers subrequest limits grow with the number of fragments.
 15. **Caching**:
