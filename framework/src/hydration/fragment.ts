@@ -5,6 +5,8 @@ export interface FragmentEntry {
   mount: (container: Element) => void;
   app: App | null;
   hydratedProps: string;
+  /** data-fragment-version of the mounted HTML (same deploy as the loaded JS) */
+  version?: string;
 }
 
 export function hydrateFragment(id: string, App: Component) {
@@ -31,6 +33,7 @@ function mountFragment(id: string, App: Component, container: Element | null, ss
   if (registry[id]) {
     registry[id].app = app;
     registry[id].hydratedProps = (container as HTMLElement).dataset.props || '{}';
+    registry[id].version = (container as HTMLElement).dataset.fragmentVersion;
   }
   console.log(`[fragment-${id}] hydrated`);
 }
