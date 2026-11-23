@@ -16,6 +16,8 @@ export interface FragmentBuildInfo {
 
 export interface FragmentResponse extends Partial<FragmentBuildInfo> {
   html: string;
+  /** Set when the fragment failed or timed out — slot rendered empty, client-side fallback */
+  error?: string;
   _meta?: { cached: boolean };
 }
 

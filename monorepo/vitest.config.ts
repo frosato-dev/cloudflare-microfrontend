@@ -5,5 +5,8 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     environment: 'node',
+    // Framework unit tests only — e2e/ is Playwright (pnpm test:e2e)
+    dir: '..',
+    include: ['framework/src/**/*.test.ts'],
   },
 });

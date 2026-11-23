@@ -26,7 +26,7 @@ export function fragmentHeaders(info: FragmentBuildInfo): Record<string, string>
 }
 
 export async function readFragmentResponse(res: Response): Promise<FragmentResponse> {
-  if (!res.ok) return { html: '' };
+  if (!res.ok) return { html: '', error: `HTTP ${res.status}` };
   let assets: FragmentResponse['assets'];
   try {
     assets = JSON.parse(res.headers.get(FRAGMENT_HEADERS.assets) || 'null') ?? undefined;

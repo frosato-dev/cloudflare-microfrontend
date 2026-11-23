@@ -5,6 +5,8 @@ import { toRouteEntries } from '../router.js';
 import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
+import { withFaults } from '../debug/faults.js';
+import { isolateFetcher } from '../isolation.js';
 import { handlePreviewRequest } from '../preview.js';
 import { FRAGMENT_ASSET_PREFIX, FRAGMENT_PROTOCOL, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
@@ -21,6 +23,8 @@ export interface ShellWorkerConfig {
   middleware: Record<string, { default: Middleware }>;
   layouts: Record<string, { default: Component }>;
   document: { title: string; baseStyles?: string };
+  /** ms per fragment before it's rendered empty (default 1000) */
+  fragmentTimeout?: number;
 }
 
 /** Strip s-maxage from Cache-Control (prevents Cloudflare edge from buffering the stream) */
@@ -74,7 +78,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {
         const bindingKey = `FRAGMENT_${fragmentId.toUpperCase()}`;
         const binding = env[bindingKey];
-        if (!binding) return { html: '' };
+        if (!binding) return { html: '', error: `no ${bindingKey} binding` };
 
         const url = new URL(req.url);
         for (const [k, v] of Object.entries(routeProps)) {
@@ -108,13 +112,14 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return result;
       };
 
-      let fetcher = workerFetcher;
+      // Every fragment is time-boxed + error-isolated (fault injection only in debug mode)
+      let fetcher = isolateFetcher(isDebug ? withFaults(workerFetcher, request) : workerFetcher, config.fragmentTimeout);
       let debug: { getMeta: () => Map<string, any>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void } | undefined;
       let requestStart = 0;
 
       if (isDebug) {
         requestStart = Date.now();
-        const wrapped = wrapFetcherWithDebug(workerFetcher, requestStart);
+        const wrapped = wrapFetcherWithDebug(fetcher, requestStart);
         fetcher = wrapped.fetcher;
         debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
       }
@@ -126,6 +131,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return handlePreviewRequest(request, fetcher, fragmentIds, manifest, config.document);
       }
 
+      let degraded = false; // a fragment failed → never put this page in the page cache
       const response = await handleRequest(request, fetcher, {
         routes: routeEntries,
         middlewareRegistry,
@@ -133,6 +139,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         document: config.document,
         manifest,
         knownAssets,
+        onFragmentError: () => { degraded = true; },
         debug,
       });
 
@@ -148,7 +155,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
           flush() {
             // Stream done — cache the collected body
             const body = new Blob(chunks);
-            ctx.waitUntil(pageCache.put(pageCacheKey, new Response(body, response)));
+            if (!degraded) ctx.waitUntil(pageCache.put(pageCacheKey, new Response(body, response)));
           },
         });
         const clientHeaders = new Headers(response.headers);

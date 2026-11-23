@@ -67,6 +67,7 @@ function shellEntryServerPlugin(cwd: string): Plugin {
       `  middleware,`,
       `  layouts,`,
       `  document: config.document,`,
+      `  fragmentTimeout: config.fragmentTimeout,`,
       `});`,
     ].join('\n');
   });

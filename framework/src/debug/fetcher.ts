@@ -5,6 +5,7 @@ export interface FragmentMeta {
   fetchStart: number;
   fetchEnd: number;
   cached: boolean;
+  error?: string;
 }
 
 export interface DebugMeta {
@@ -32,6 +33,7 @@ export function wrapFetcherWithDebug(
       fetchStart,
       fetchEnd,
       cached: result._meta?.cached ?? false,
+      error: result.error,
     });
 
     return result;
