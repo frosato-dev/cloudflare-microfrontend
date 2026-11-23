@@ -7,6 +7,7 @@ import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import { withFaults } from '../debug/faults.js';
 import { isolateFetcher } from '../isolation.js';
+import { handleRumRequest } from '../metrics.js';
 import { handlePreviewRequest } from '../preview.js';
 import { FRAGMENT_ASSET_PREFIX, FRAGMENT_PROTOCOL, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
@@ -49,6 +50,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const binding = env[`FRAGMENT_${id.toUpperCase()}`];
         return binding ? binding.fetch(request) : new Response('Not Found', { status: 404 });
       }
+
+      if (url.pathname === '/__rum') return handleRumRequest(request, routeEntries);
 
       if (!manifest && (env as any).ASSETS) {
         try {
@@ -114,15 +117,10 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
       // Every fragment is time-boxed + error-isolated (fault injection only in debug mode)
       let fetcher = isolateFetcher(isDebug ? withFaults(workerFetcher, request) : workerFetcher, config.fragmentTimeout);
-      let debug: { getMeta: () => Map<string, any>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void } | undefined;
-      let requestStart = 0;
-
-      if (isDebug) {
-        requestStart = Date.now();
-        const wrapped = wrapFetcherWithDebug(fetcher, requestStart);
-        fetcher = wrapped.fetcher;
-        debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
-      }
+      // Always time fragments: structured logs (metrics.ts) + debug bar when cookie-enabled
+      const timed = wrapFetcherWithDebug(fetcher, Date.now());
+      fetcher = timed.fetcher;
+      const timing = { getMeta: timed.getMeta, setShellEnd: timed.setShellEnd, setTotalEnd: timed.setTotalEnd };
 
       if (url.pathname === '/__preview' || url.pathname.startsWith('/__preview/')) {
         const fragmentIds = Object.keys(env)
@@ -140,7 +138,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
         manifest,
         knownAssets,
         onFragmentError: () => { degraded = true; },
-        debug,
+        timing,
+        debugBar: isDebug,
       });
 
       // Collect streamed chunks for worker-level cache while streaming to client

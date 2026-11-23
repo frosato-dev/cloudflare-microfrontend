@@ -31,5 +31,4 @@ test.describe('Fragment isolation', () => {
     await expect(page.locator('footer.footer')).toBeVisible();
     await expect(page.locator('.cart-btn')).toHaveText('Cart (0)'); // client-side rendered
   });
-
 });

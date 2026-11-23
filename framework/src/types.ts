@@ -33,6 +33,8 @@ export type Middleware = (request: Request) => Response | void | Promise<Respons
 
 export interface MatchedRoute {
   path: string;
+  /** Route definition path, e.g. /product/:id (low cardinality — for metrics) */
+  routePath: string;
   component: Component | LazyComponent;
   props: Record<string, string>;
   layout: string;
@@ -41,6 +43,7 @@ export interface MatchedRoute {
 }
 
 export interface RouteEntry {
+  routePath: string;
   pattern: RegExp;
   paramNames: string[];
   component: Component | LazyComponent;

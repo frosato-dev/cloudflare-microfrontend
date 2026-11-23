@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import type { FragmentMeta } from './debug/index.js';
 import { getDebugBarScript } from './debug/index.js';
+import { logRequestMetrics } from './metrics.js';
 
 export interface HandleRequestConfig {
   routes: RouteEntry[];
@@ -24,7 +25,10 @@ export interface HandleRequestConfig {
   knownAssets?: Map<string, FragmentAssets>;
   /** Called when a fragment failed/timed out — caller must not cache this page */
   onFragmentError?: (fragmentId: string, error: string) => void;
-  debug?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
+  /** Per-request fragment timings (always on) → structured logs; also feeds the debug bar */
+  timing?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
+  /** Render debug bar + data-dbg-* attributes (cookie-gated) */
+  debugBar?: boolean;
 }
 
 interface ExtractedFragment {
@@ -104,9 +108,7 @@ export async function handleRequest(
       const fragments = extractFragments(appHtml);
       const fragmentIds = fragments.map((f) => f.id);
 
-      if (config.debug) {
-        config.debug.setShellEnd(Date.now());
-      }
+      config.timing?.setShellEnd(Date.now());
 
       const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
         fragments.map((f) => [
@@ -150,8 +152,8 @@ export async function handleRequest(
           let openTag = seg.openTag;
           if (result.version) openTag = openTag.replace(/>$/, ` data-fragment-version="${escapeAttr(result.version)}">`);
           if (result.error) openTag = openTag.replace(/>$/, ` data-fragment-error="${escapeAttr(result.error)}">`);
-          if (config.debug) {
-            const meta = config.debug.getMeta().get(seg.id);
+          if (config.debugBar && config.timing) {
+            const meta = config.timing.getMeta().get(seg.id);
             const cached = meta?.cached ?? false;
             const serverStart = meta?.fetchStart ?? 0;
             const serverEnd = meta?.fetchEnd ?? 0;
@@ -165,11 +167,11 @@ export async function handleRequest(
       }
 
       // Stream close: fragment scripts go after #app to avoid hydration mismatch
-      if (config.debug) {
-        config.debug.setTotalEnd(Date.now());
-      }
-      const debugData = config.debug ? config.debug.getMeta() : undefined;
-      const debugBar = config.debug ? getDebugBarScript(fragmentIds, debugData) : '';
+      config.timing?.setTotalEnd(Date.now());
+      const timingData = config.timing?.getMeta();
+      if (timingData) logRequestMetrics(route.routePath, timingData);
+      const debugData = config.debugBar ? timingData : undefined;
+      const debugBar = debugData ? getDebugBarScript(fragmentIds, debugData) : '';
       const totalAttr = debugData ? ` data-dbg-total="${debugData.get('__total')?.fetchEnd ?? 0}"` : '';
       const shellMeta = debugData?.get('__shell');
       const shellAttr = shellMeta ? ` data-dbg-shell-start="${shellMeta.fetchStart}" data-dbg-shell-end="${shellMeta.fetchEnd}"` : '';

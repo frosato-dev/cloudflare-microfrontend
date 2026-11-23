@@ -103,6 +103,7 @@ export function defineShellConfig() {
     if (mode === 'client') {
       return {
         plugins: [vue(), vueBrowserBundlePlugin(), shellEntryClientPlugin(cwd)],
+        base: '/assets/', // served from the app's ASSETS at /assets/* — lazy chunks (RUM) resolve there
         build: {
           outDir: 'dist/client',
           manifest: true,
@@ -111,6 +112,7 @@ export function defineShellConfig() {
             external: ['vue'],
             output: {
               entryFileNames: `shell.[hash].js`,
+              chunkFileNames: `shell-[name].[hash].js`,
               assetFileNames: `shell.[hash].[ext]`,
               format: 'es' as const,
             },
