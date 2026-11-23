@@ -63,10 +63,12 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const isDebug = isDebugRequest(request);
       const noCache = isNoCacheRequest(request);
       const pageCache = caches.default;
+      // Cache namespace = shell deployment: a deploy replaces static assets, so entries cached by a
+      // previous deployment may reference deleted bundles (shell or fragments) → never read them
+      const deployId = (env as any).CF_VERSION_METADATA?.id ?? manifest?.['shell.js'] ?? '';
       const pageCacheUrl = new URL(request.url);
       pageCacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
-      // Shell build in the key: a deploy removes the previous shell bundle → never serve pages that reference it
-      pageCacheUrl.searchParams.set('__sv', manifest?.['shell.js'] ?? '');
+      pageCacheUrl.searchParams.set('__sv', deployId);
       const pageCacheKey = new Request(pageCacheUrl.toString());
 
       // Skip when debug is on — cached page won't have the debug bar
@@ -93,8 +95,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const cacheUrl = new URL(url.toString());
         cacheUrl.searchParams.set('__fragment', fragmentId);
         cacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
-        // Shell build in the key: a full redeploy drops cached fragment HTML pointing at deleted assets
-        cacheUrl.searchParams.set('__sv', manifest?.['shell.js'] ?? '');
+        cacheUrl.searchParams.set('__sv', deployId);
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
