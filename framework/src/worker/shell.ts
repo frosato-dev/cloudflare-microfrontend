@@ -65,6 +65,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const pageCache = caches.default;
       const pageCacheUrl = new URL(request.url);
       pageCacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+      // Shell build in the key: a deploy removes the previous shell bundle → never serve pages that reference it
+      pageCacheUrl.searchParams.set('__sv', manifest?.['shell.js'] ?? '');
       const pageCacheKey = new Request(pageCacheUrl.toString());
 
       // Skip when debug is on — cached page won't have the debug bar
