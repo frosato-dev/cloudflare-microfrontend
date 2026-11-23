@@ -93,6 +93,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const cacheUrl = new URL(url.toString());
         cacheUrl.searchParams.set('__fragment', fragmentId);
         cacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+        // Shell build in the key: a full redeploy drops cached fragment HTML pointing at deleted assets
+        cacheUrl.searchParams.set('__sv', manifest?.['shell.js'] ?? '');
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
