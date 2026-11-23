@@ -122,7 +122,7 @@ The default `/_fragments` mode works deployed as is: each fragment's `wrangler d
 
 - Each asset request runs two Worker invocations (shell, then fragment), which is billed. On a cache miss, the CDN doesn't help.
 - **Old versions aren't kept**: Workers static assets are replaced on each deploy. Cached HTML or open tabs that reference the previous hashes get 404, which the client recovers from by doing a full page load or reload.
-- The Workers Cache API appears to do nothing on `workers.dev`, so the page and fragment caches may not be active (to verify with the debug bar).
+- The Workers Cache API **is** active on `workers.dev` (checked: `cf-cache-status: HIT`). The first deploy showed why cache keys must change with the protocol: the new shell read JSON fragment responses cached by the old one and injected them as HTML. Shell cache keys now include `__fp=<FRAGMENT_PROTOCOL>`, which must be bumped on any incompatible protocol change.
 
 ## Code impact
 

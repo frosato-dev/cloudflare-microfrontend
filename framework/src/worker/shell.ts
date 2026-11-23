@@ -6,7 +6,7 @@ import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
 import { handlePreviewRequest } from '../preview.js';
-import { FRAGMENT_ASSET_PREFIX, readFragmentResponse } from '../fragment-protocol.js';
+import { FRAGMENT_ASSET_PREFIX, FRAGMENT_PROTOCOL, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
 import type {
   AppRoute,
@@ -56,7 +56,9 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const isDebug = isDebugRequest(request);
       const noCache = isNoCacheRequest(request);
       const pageCache = caches.default;
-      const pageCacheKey = new Request(request.url);
+      const pageCacheUrl = new URL(request.url);
+      pageCacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+      const pageCacheKey = new Request(pageCacheUrl.toString());
 
       // Skip when debug is on — cached page won't have the debug bar
       if (!noCache && !isDebug) {
@@ -81,6 +83,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
 
         const cacheUrl = new URL(url.toString());
         cacheUrl.searchParams.set('__fragment', fragmentId);
+        cacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 

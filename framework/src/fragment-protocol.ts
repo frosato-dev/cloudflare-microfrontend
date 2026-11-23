@@ -3,6 +3,13 @@ import type { FragmentBuildInfo, FragmentResponse } from './types.js';
 /** Same-origin path where fragment client assets are served: /_fragments/<id>/<file> (shell → fragment worker) */
 export const FRAGMENT_ASSET_PREFIX = '/_fragments';
 
+/**
+ * Wire protocol version — part of every shell cache key (page + fragment).
+ * Bump on any incompatible change so entries cached by a previous protocol are never read.
+ * 1 = JSON body, 2 = HTML body + X-Fragment-* headers
+ */
+export const FRAGMENT_PROTOCOL = '2';
+
 /** Shell ↔ fragment wire contract: body = raw HTML, build info in headers */
 export const FRAGMENT_HEADERS = {
   version: 'X-Fragment-Version',
