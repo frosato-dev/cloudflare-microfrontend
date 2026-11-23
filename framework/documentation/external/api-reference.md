@@ -74,10 +74,11 @@ interface ShellWorkerConfig {
   middleware: Record<string, { default: Middleware }>;
   layouts: Record<string, { default: Component }>;
   document: { title: string; baseStyles?: string };
+  fragmentTimeout?: number; // ms per fragment, default 1000
 }
 ```
 
-#### `createFragmentWorker(render, cacheControl): { fetch(request) }`
+#### `createFragmentWorker(render, cacheControl, buildInfo): { fetch(request) }`
 Creates a Worker fetch handler for a fragment. Calls `render(request)` and returns JSON with the specified `Cache-Control`.
 
 ---

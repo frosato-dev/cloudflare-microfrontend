@@ -157,4 +157,9 @@ export function hydrateShell(config: {
     app.mount('#app');
     console.log('[shell] hydrated');
   });
+
+  // RUM loaded after `load`, off the critical path (web-vitals reads buffered perf entries)
+  const startRum = () => setTimeout(() => import('./rum.ts').then((m) => m.startRum()), 0);
+  if (document.readyState === 'complete') startRum();
+  else addEventListener('load', startRum, { once: true });
 }

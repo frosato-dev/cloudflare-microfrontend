@@ -5,6 +5,9 @@ import { toRouteEntries } from '../router.js';
 import { buildMiddlewareRegistry } from '../middleware.js';
 import { buildLayoutRegistry } from '../layouts.js';
 import { isDebugRequest, isNoCacheRequest, wrapFetcherWithDebug } from '../debug/index.js';
+import { withFaults } from '../debug/faults.js';
+import { isolateFetcher } from '../isolation.js';
+import { handleRumRequest } from '../metrics.js';
 import { handlePreviewRequest } from '../preview.js';
 import { FRAGMENT_ASSET_PREFIX, FRAGMENT_PROTOCOL, readFragmentResponse } from '../fragment-protocol.js';
 import type { Component } from 'vue';
@@ -21,6 +24,8 @@ export interface ShellWorkerConfig {
   middleware: Record<string, { default: Middleware }>;
   layouts: Record<string, { default: Component }>;
   document: { title: string; baseStyles?: string };
+  /** ms per fragment before it's rendered empty (default 1000) */
+  fragmentTimeout?: number;
 }
 
 /** Strip s-maxage from Cache-Control (prevents Cloudflare edge from buffering the stream) */
@@ -46,6 +51,8 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return binding ? binding.fetch(request) : new Response('Not Found', { status: 404 });
       }
 
+      if (url.pathname === '/__rum') return handleRumRequest(request, routeEntries);
+
       if (!manifest && (env as any).ASSETS) {
         try {
           const res = await (env as any).ASSETS.fetch(new Request('https://dummy/assets/manifest.json'));
@@ -56,8 +63,12 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const isDebug = isDebugRequest(request);
       const noCache = isNoCacheRequest(request);
       const pageCache = caches.default;
+      // Cache namespace = shell deployment: a deploy replaces static assets, so entries cached by a
+      // previous deployment may reference deleted bundles (shell or fragments) → never read them
+      const deployId = (env as any).CF_VERSION_METADATA?.id ?? manifest?.['shell.js'] ?? '';
       const pageCacheUrl = new URL(request.url);
       pageCacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+      pageCacheUrl.searchParams.set('__sv', deployId);
       const pageCacheKey = new Request(pageCacheUrl.toString());
 
       // Skip when debug is on — cached page won't have the debug bar
@@ -74,7 +85,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
       const workerFetcher: FragmentFetcher = async (fragmentId, req, routeProps) => {
         const bindingKey = `FRAGMENT_${fragmentId.toUpperCase()}`;
         const binding = env[bindingKey];
-        if (!binding) return { html: '' };
+        if (!binding) return { html: '', error: `no ${bindingKey} binding` };
 
         const url = new URL(req.url);
         for (const [k, v] of Object.entries(routeProps)) {
@@ -84,6 +95,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         const cacheUrl = new URL(url.toString());
         cacheUrl.searchParams.set('__fragment', fragmentId);
         cacheUrl.searchParams.set('__fp', FRAGMENT_PROTOCOL);
+        cacheUrl.searchParams.set('__sv', deployId);
         const cacheKey = new Request(cacheUrl.toString());
         const cache = caches.default;
 
@@ -108,16 +120,12 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return result;
       };
 
-      let fetcher = workerFetcher;
-      let debug: { getMeta: () => Map<string, any>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void } | undefined;
-      let requestStart = 0;
-
-      if (isDebug) {
-        requestStart = Date.now();
-        const wrapped = wrapFetcherWithDebug(workerFetcher, requestStart);
-        fetcher = wrapped.fetcher;
-        debug = { getMeta: wrapped.getMeta, setShellEnd: wrapped.setShellEnd, setTotalEnd: wrapped.setTotalEnd };
-      }
+      // Every fragment is time-boxed + error-isolated (fault injection only in debug mode)
+      let fetcher = isolateFetcher(isDebug ? withFaults(workerFetcher, request) : workerFetcher, config.fragmentTimeout);
+      // Always time fragments: structured logs (metrics.ts) + debug bar when cookie-enabled
+      const timed = wrapFetcherWithDebug(fetcher, Date.now());
+      fetcher = timed.fetcher;
+      const timing = { getMeta: timed.getMeta, setShellEnd: timed.setShellEnd, setTotalEnd: timed.setTotalEnd };
 
       if (url.pathname === '/__preview' || url.pathname.startsWith('/__preview/')) {
         const fragmentIds = Object.keys(env)
@@ -126,6 +134,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
         return handlePreviewRequest(request, fetcher, fragmentIds, manifest, config.document);
       }
 
+      let degraded = false; // a fragment failed → never put this page in the page cache
       const response = await handleRequest(request, fetcher, {
         routes: routeEntries,
         middlewareRegistry,
@@ -133,7 +142,9 @@ export function createShellWorker(config: ShellWorkerConfig) {
         document: config.document,
         manifest,
         knownAssets,
-        debug,
+        onFragmentError: () => { degraded = true; },
+        timing,
+        debugBar: isDebug,
       });
 
       // Collect streamed chunks for worker-level cache while streaming to client
@@ -148,7 +159,7 @@ export function createShellWorker(config: ShellWorkerConfig) {
           flush() {
             // Stream done — cache the collected body
             const body = new Blob(chunks);
-            ctx.waitUntil(pageCache.put(pageCacheKey, new Response(body, response)));
+            if (!degraded) ctx.waitUntil(pageCache.put(pageCacheKey, new Response(body, response)));
           },
         });
         const clientHeaders = new Headers(response.headers);

@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import type { FragmentMeta } from './debug/index.js';
 import { getDebugBarScript } from './debug/index.js';
+import { logRequestMetrics } from './metrics.js';
 
 export interface HandleRequestConfig {
   routes: RouteEntry[];
@@ -22,7 +23,12 @@ export interface HandleRequestConfig {
   manifest?: AssetManifest;
   /** Latest assets seen per fragment (isolate memory) — best-effort <head> preloads; stale = one wasted preload */
   knownAssets?: Map<string, FragmentAssets>;
-  debug?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
+  /** Called when a fragment failed/timed out — caller must not cache this page */
+  onFragmentError?: (fragmentId: string, error: string) => void;
+  /** Per-request fragment timings (always on) → structured logs; also feeds the debug bar */
+  timing?: { getMeta: () => Map<string, FragmentMeta>; setShellEnd: (ms: number) => void; setTotalEnd: (ms: number) => void };
+  /** Render debug bar + data-dbg-* attributes (cookie-gated) */
+  debugBar?: boolean;
 }
 
 interface ExtractedFragment {
@@ -76,95 +82,108 @@ export async function handleRequest(
   const writer = writable.getWriter();
 
   (async () => {
-    // Phase 1: flush shell assets — browser starts fetching vue.js, shell.js, shell.css NOW
-    await writer.write(encoder.encode(
-      `<!DOCTYPE html>\n<html lang="en">\n<head>\n` +
-      `  <meta charset="UTF-8" />\n` +
-      `  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n` +
-      `  <title>${config.document.title}</title>\n` +
-      `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
-      `  ${shellLinks}\n` +
-      `  ${shellScripts}\n` +
-      buildPreconnectTags(url.origin, config.knownAssets),
-    ));
+    try {
+      // Phase 1: flush shell assets — browser starts fetching vue.js, shell.js, shell.css NOW
+      await writer.write(encoder.encode(
+        `<!DOCTYPE html>\n<html lang="en">\n<head>\n` +
+        `  <meta charset="UTF-8" />\n` +
+        `  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n` +
+        `  <title>${config.document.title}</title>\n` +
+        `  <style>${baseStyles}</style>${viewTransitionStyle}\n` +
+        `  ${shellLinks}\n` +
+        `  ${shellScripts}\n` +
+        buildPreconnectTags(url.origin, config.knownAssets),
+      ));
 
-    // 3. Resolve lazy component + SSR render (browser already fetching shell assets)
-    const comp = typeof route.component === 'function' && !(route.component as any).__vccOpts
-      ? (await (route.component as () => Promise<{ default: Component }>)()).default
-      : route.component as Component;
-    const app = createSSRApp({
-      render: () => h(Layout, null, { default: () => h(comp, route.props) }),
-    });
-    const appHtml = await renderToString(app);
+      // 3. Resolve lazy component + SSR render (browser already fetching shell assets)
+      const comp = typeof route.component === 'function' && !(route.component as any).__vccOpts
+        ? (await (route.component as () => Promise<{ default: Component }>)()).default
+        : route.component as Component;
+      const app = createSSRApp({
+        render: () => h(Layout, null, { default: () => h(comp, route.props) }),
+      });
+      const appHtml = await renderToString(app);
 
-    // 4. Extract fragments, fire all fetches in parallel
-    const fragments = extractFragments(appHtml);
-    const fragmentIds = fragments.map((f) => f.id);
+      // 4. Extract fragments, fire all fetches in parallel
+      const fragments = extractFragments(appHtml);
+      const fragmentIds = fragments.map((f) => f.id);
 
-    if (config.debug) {
-      config.debug.setShellEnd(Date.now());
-    }
+      config.timing?.setShellEnd(Date.now());
 
-    const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
-      fragments.map((f) => [
-        f.id,
-        fetchFragment(f.id, request, { ...route.props, ...f.props }),
-      ]),
-    );
+      const fragmentPromises: Record<string, Promise<FragmentResponse>> = Object.fromEntries(
+        fragments.map((f) => [
+          f.id,
+          fetchFragment(f.id, request, { ...route.props, ...f.props }),
+        ]),
+      );
 
-    // Phase 2: preload known fragment assets + close </head>
-    // (authoritative CSS links ship inside each fragment's HTML via fragmentRoot)
-    await writer.write(encoder.encode(
-      buildFragmentPreloadTags(fragmentIds, config.knownAssets) +
-      `</head>\n<body>\n  <div id="app">`,
-    ));
+      // Phase 2: preload known fragment assets + close </head>
+      // (authoritative CSS links ship inside each fragment's HTML via fragmentRoot)
+      await writer.write(encoder.encode(
+        buildFragmentPreloadTags(fragmentIds, config.knownAssets) +
+        `</head>\n<body>\n  <div id="app">`,
+      ));
 
-    // 5. Stream body: static parts flush immediately, fragments await in doc order
-    // Collect fragment scripts to emit OUTSIDE #app (avoids hydration mismatch)
-    const fragScripts: string[] = [];
-    const segments = splitAtFragments(appHtml);
-    for (const seg of segments) {
-      if (seg.type === 'static') {
-        await writer.write(encoder.encode(seg.html));
-      } else {
-        const result = await fragmentPromises[seg.id];
-        if (result.assets) config.knownAssets?.set(seg.id, result.assets);
-        if (isVueCompatible(result.vue)) {
-          fragScripts.push(fragmentScriptTag(result.assets));
+      // 5. Stream body: static parts flush immediately, fragments await in doc order
+      // Collect fragment scripts to emit OUTSIDE #app (avoids hydration mismatch)
+      const fragScripts: string[] = [];
+      const segments = splitAtFragments(appHtml);
+      for (const seg of segments) {
+        if (seg.type === 'static') {
+          await writer.write(encoder.encode(seg.html));
         } else {
-          // SSR HTML stays, hydration skipped — a fragment built against another Vue minor must not run on the shell's Vue
-          console.error(`[fragment-${seg.id}] built with vue ${result.vue}, shell serves ${vueVersion} — hydration skipped`);
-        }
-        const openTag = result.version
-          ? seg.openTag.replace(/>$/, ` data-fragment-version="${escapeAttr(result.version)}">`)
-          : seg.openTag;
-        if (config.debug) {
-          const meta = config.debug.getMeta().get(seg.id);
-          const cached = meta?.cached ?? false;
-          const serverStart = meta?.fetchStart ?? 0;
-          const serverEnd = meta?.fetchEnd ?? 0;
-          const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
-          const tagWithDbg = openTag.replace(/>$/, dbgAttrs + '>');
-          await writer.write(encoder.encode(`${tagWithDbg}${result.html}</div>`));
-        } else {
-          await writer.write(encoder.encode(`${openTag}${result.html}</div>`));
+          const result = await fragmentPromises[seg.id];
+          if (result.assets) config.knownAssets?.set(seg.id, result.assets);
+          // Failed/timed-out fragment: empty slot + client-side render from last known assets (if any)
+          const assets = result.assets ?? (result.error ? config.knownAssets?.get(seg.id) : undefined);
+          const html = result.error
+            ? (assets?.css ?? []).map((href) => `<link rel="stylesheet" href="${href}">`).join('')
+            : result.html;
+          if (result.error) {
+            console.error(`[fragment-${seg.id}] ${result.error} — empty slot${assets ? ', client-side fallback' : ''}`);
+            config.onFragmentError?.(seg.id, result.error);
+          }
+          if (isVueCompatible(result.vue)) {
+            fragScripts.push(fragmentScriptTag(assets));
+          } else {
+            // SSR HTML stays, hydration skipped — a fragment built against another Vue minor must not run on the shell's Vue
+            console.error(`[fragment-${seg.id}] built with vue ${result.vue}, shell serves ${vueVersion} — hydration skipped`);
+          }
+          let openTag = seg.openTag;
+          if (result.version) openTag = openTag.replace(/>$/, ` data-fragment-version="${escapeAttr(result.version)}">`);
+          if (result.error) openTag = openTag.replace(/>$/, ` data-fragment-error="${escapeAttr(result.error)}">`);
+          if (config.debugBar && config.timing) {
+            const meta = config.timing.getMeta().get(seg.id);
+            const cached = meta?.cached ?? false;
+            const serverStart = meta?.fetchStart ?? 0;
+            const serverEnd = meta?.fetchEnd ?? 0;
+            const dbgAttrs = ` data-dbg-cached="${cached}" data-dbg-start="${serverStart}" data-dbg-end="${serverEnd}"`;
+            const tagWithDbg = openTag.replace(/>$/, dbgAttrs + '>');
+            await writer.write(encoder.encode(`${tagWithDbg}${html}</div>`));
+          } else {
+            await writer.write(encoder.encode(`${openTag}${html}</div>`));
+          }
         }
       }
-    }
 
-    // Stream close: fragment scripts go after #app to avoid hydration mismatch
-    if (config.debug) {
-      config.debug.setTotalEnd(Date.now());
+      // Stream close: fragment scripts go after #app to avoid hydration mismatch
+      config.timing?.setTotalEnd(Date.now());
+      const timingData = config.timing?.getMeta();
+      if (timingData) logRequestMetrics(route.routePath, timingData);
+      const debugData = config.debugBar ? timingData : undefined;
+      const debugBar = debugData ? getDebugBarScript(fragmentIds, debugData) : '';
+      const totalAttr = debugData ? ` data-dbg-total="${debugData.get('__total')?.fetchEnd ?? 0}"` : '';
+      const shellMeta = debugData?.get('__shell');
+      const shellAttr = shellMeta ? ` data-dbg-shell-start="${shellMeta.fetchStart}" data-dbg-shell-end="${shellMeta.fetchEnd}"` : '';
+      await writer.write(encoder.encode(
+        `</div>${totalAttr}${shellAttr}\n${fragScripts.join('\n')}\n${debugBar}\n</body>\n</html>`,
+      ));
+    } catch (err) {
+      // Never leave the response hanging (shell SSR/layout error)
+      console.error('[shell] render failed', err);
+    } finally {
+      await writer.close().catch(() => {});
     }
-    const debugData = config.debug ? config.debug.getMeta() : undefined;
-    const debugBar = config.debug ? getDebugBarScript(fragmentIds, debugData) : '';
-    const totalAttr = debugData ? ` data-dbg-total="${debugData.get('__total')?.fetchEnd ?? 0}"` : '';
-    const shellMeta = debugData?.get('__shell');
-    const shellAttr = shellMeta ? ` data-dbg-shell-start="${shellMeta.fetchStart}" data-dbg-shell-end="${shellMeta.fetchEnd}"` : '';
-    await writer.write(encoder.encode(
-      `</div>${totalAttr}${shellAttr}\n${fragScripts.join('\n')}\n${debugBar}\n</body>\n</html>`,
-    ));
-    await writer.close();
   })();
 
   const isClientNav = request.headers.get('X-Navigate') === '1';

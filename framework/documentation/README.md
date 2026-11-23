@@ -17,6 +17,7 @@ Goal: prove that Back Market can break the monolith into independently deployabl
 | Set up the monorepo workspace         | [Monorepo Setup](external/monorepo-setup.md)                   |
 | Configure caching                     | [Caching](external/caching.md)                                 |
 | Debug with the debug bar              | [Debugging](external/debugging.md)                             |
+| Fragment isolation, logs & RUM        | [Observability](external/observability.md)                     |
 | Understand the architecture           | [Architecture Overview](internal/architecture-overview.md)     |
 | Understand SSR streaming              | [SSR Rendering Pipeline](internal/ssr-rendering-pipeline.md)   |
 | Understand hydration & SPA nav        | [Hydration & Navigation](internal/hydration-and-navigation.md) |

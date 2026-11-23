@@ -20,11 +20,13 @@ location.reload();
 - **Cache indicators** — HIT (green, near-zero ms) / MISS (blue, shows actual duration)
 - **Tooltip** — hover a bar to see timing + cache status
 - **Disable cache toggle** — checkbox sets `__debug_nocache=1` cookie, reloads
-- **Disable debug button** — clears both cookies, reloads
+- **Disable debug button**: clears both cookies, reloads
+- **Failed fragments**: shown in red with an ERROR badge and the reason (timeout, error, HTTP status)
+- **Fault injection**: `__debug_fault=<fragment>:<timeout|error>` simulates a failing fragment. See [Observability](observability.md)
 
 ### How It Works
 
-1. When `__debug=1` cookie is detected, the shell wraps the fragment fetcher with `wrapFetcherWithDebug()` to collect timing metadata
+1. The shell always wraps the fragment fetcher with `wrapFetcherWithDebug()` to collect timing metadata. That data feeds the structured logs, and also the debug bar when `__debug=1` is set.
 2. Shell SSR end time is recorded before fragment fetches start
 3. Total request time is recorded at stream end
 4. Each fragment `<div>` gets `data-dbg-cached`, `data-dbg-start`, `data-dbg-end` attributes

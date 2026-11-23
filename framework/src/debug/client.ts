@@ -3,10 +3,10 @@ import type { FragmentMeta } from './fetcher.js';
 export function getDebugBarScript(fragmentIds: string[], debugData?: Map<string, FragmentMeta>): string {
   const totalMs = debugData?.get('__total')?.fetchEnd ?? 0;
   const shellEnd = debugData?.get('__shell')?.fetchEnd ?? 0;
-  const fragMeta: Record<string, { cached: boolean; start: number; end: number }> = {};
+  const fragMeta: Record<string, { cached: boolean; start: number; end: number; error?: string }> = {};
   for (const id of fragmentIds) {
     const m = debugData?.get(id);
-    if (m) fragMeta[id] = { cached: m.cached, start: m.fetchStart, end: m.fetchEnd };
+    if (m) fragMeta[id] = { cached: m.cached, start: m.fetchStart, end: m.fetchEnd, error: m.error };
   }
 
   const cachedCount = fragmentIds.filter((id) => fragMeta[id]?.cached).length;
@@ -68,6 +68,7 @@ ids.forEach(function(id){
   var badgeColor=cached?'#4CAF50':'#ff9800';
   var dur=f.end?Math.round(f.end-(f.start||0)):0;
   var extra=cached?'<br>Served from cache':'';
+  if(f.error){color='#f44336';badge='ERROR';badgeColor='#f44336';extra='<br>'+f.error.replace(/</g,'&lt;')}
   addBar(id,color,f.start||0,f.end||0,badge,badgeColor,extra);
 });
 

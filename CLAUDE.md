@@ -25,11 +25,11 @@ Back Market meta-framework — Vue micro-frontends on Cloudflare Workers
 Run from `monorepo/`:
 
 - `pnpm install` - install deps
-- `pnpm run dev` - vite SSR dev server (port 3000)
 - `pnpm run build` - production build all packages
 - `pnpm run preview` - build + wrangler dev with all workers (port 8787)
-- `pnpm run deploy` - build + deploy all workers to Cloudflare
-- `pnpm test` - run vitest
+- `pnpm run deploy:all` - clean + build + deploy all workers to Cloudflare
+- `pnpm test` - framework unit tests (vitest, `framework/src/**/*.test.ts`)
+- `pnpm run test:e2e` - Playwright e2e (starts preview)
 
 ## Guidelines
 

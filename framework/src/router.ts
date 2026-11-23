@@ -14,6 +14,7 @@ export function toRouteEntries(routes: AppRoute[]): RouteEntry[] {
   return routes.map((route) => {
     const { pattern, paramNames } = pathToPattern(route.path);
     return {
+      routePath: route.path,
       pattern,
       paramNames,
       component: route.component,
@@ -46,6 +47,7 @@ export function matchRoute(routes: RouteEntry[], pathname: string): MatchedRoute
       });
       return {
         path: pathname,
+        routePath: route.routePath,
         component: route.component,
         props,
         layout: route.layout,

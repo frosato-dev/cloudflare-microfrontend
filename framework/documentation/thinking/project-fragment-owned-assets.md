@@ -121,7 +121,10 @@ Assets are uploaded before the Worker, so new HTML never references missing file
 The default `/_fragments` mode works deployed as is: each fragment's `wrangler deploy` uploads its own `dist/client`, and the shell forwards asset requests to it. Fragments are deployed independently already. Limitations compared with R2 + `static.<domain>`:
 
 - Each asset request runs two Worker invocations (shell, then fragment), which is billed. On a cache miss, the CDN doesn't help.
-- **Old versions aren't kept**: Workers static assets are replaced on each deploy. Cached HTML or open tabs that reference the previous hashes get 404, which the client recovers from by doing a full page load or reload.
+- **Old versions aren't kept**: Workers static assets are replaced on each deploy.
+  - **Mitigated for full deploys:** the page and fragment caches are keyed by the shell's deployment ID (`__sv`), so `deploy:all` never serves cached HTML that points to deleted bundles. This was seen in production: after a deploy, the header and footer JS returned 404 from cached HTML until this was added.
+  - **Still open, fragment deployed alone:** the shell doesn't redeploy, so cached fragment HTML (up to the fragment's `max-age`, e.g. 1 h) references the deleted JS, and the fragment isn't hydrated until the entry expires. Open tabs recover through a full page load or reload.
+  - **The real fix is keeping old assets:** e.g. an R2 bucket used through a **binding**, with the shell serving `/_fragments/*` from it. That works on `workers.dev` without a custom domain.
 - The Workers Cache API **is** active on `workers.dev` (checked: `cf-cache-status: HIT`). The first deploy showed why cache keys must change with the protocol: the new shell read JSON fragment responses cached by the old one and injected them as HTML. Shell cache keys now include `__fp=<FRAGMENT_PROTOCOL>`, which must be bumped on any incompatible protocol change.
 
 ## Code impact

@@ -38,6 +38,8 @@ Scaffold a new shell app (the orchestrating worker that stitches fragments). The
   "main": "dist/server/entry-server.js",
   "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "assets": {
     "directory": "dist/static",
     "binding": "ASSETS",
