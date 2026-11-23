@@ -16,9 +16,11 @@ cacheUrl.searchParams.set('__fragment', fragmentId);
 const cacheKey = new Request(cacheUrl.toString());
 ```
 
-Example: `https://example.com/product/42?__fragment=header&__fp=2`
+Example: `https://example.com/product/42?__fragment=header&__fp=2&__sv=<shell deployment id>`
 
-`__fp` = `FRAGMENT_PROTOCOL` (`fragment-protocol.ts`). The page cache key gets it too. Bump it on any incompatible shell ↔ fragment protocol change, so entries cached by the previous protocol are never read.
+The page cache key gets both parameters too:
+- `__fp` = `FRAGMENT_PROTOCOL` (`fragment-protocol.ts`). Bump it on any incompatible shell ↔ fragment protocol change, so entries cached by the previous protocol are never read.
+- `__sv` = the shell Worker's deployment ID (`version_metadata` binding `CF_VERSION_METADATA`). A deploy replaces static assets, so entries cached by a previous deployment can reference deleted bundles. Every shell deploy therefore starts a fresh cache namespace. If the binding is missing, it falls back to the shell bundle's file name.
 
 **Read**: before fetching the fragment worker
 ```ts
