@@ -19,7 +19,7 @@ framework-cli preview [--app <name>] [--port <port>]
 
 **What it does:**
 1. `generateAppWranglerConfigs()` — auto-generates service bindings
-2. `collectAssets()`: merges the app (shell) client builds into `dist/static/`. Fragments serve their own assets.
+2. `collectAssets()`: copies each app's (shell's) client build into its own `dist/static/`. Fragments serve their own assets.
 3. Clears the app's local Workers cache (`.wrangler/state/v3/cache`)
 4. Starts `wrangler dev` with all fragment and app wrangler configs
 

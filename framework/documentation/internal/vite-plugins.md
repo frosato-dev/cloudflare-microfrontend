@@ -139,17 +139,18 @@ flowchart TB
 
     subgraph "vite build --mode client"
         SC[Shell client entry] --> SCA[dist/client/shell.[hash].js\nshell.[hash].css\nvue.[hash].js]
-        FC[Fragment client entry] --> FCA["dist/client/fragment-{name}.[hash].js\nfragment-{name}.[hash].css"]
+        FC[Fragment client entry] --> FCA["dist/client/{name}/fragment-{name}.[hash].js\nfragment-{name}.[hash].css"]
     end
 
-    subgraph collectAssets
-        SCA & FCA --> MERGE[Merge into dist/static/assets/]
+    subgraph "collectAssets (per app)"
+        SCA --> MERGE["Copy into app dist/static/assets/"]
         MERGE --> MAN[manifest.json]
         MERGE --> HDR[_headers]
     end
 
     SW & FW -->|"Cloudflare Workers"| DEPLOY[wrangler deploy]
-    MERGE -->|"Static assets"| DEPLOY
+    MERGE -->|"Shell static assets"| DEPLOY
+    FCA -->|"Fragment static assets"| DEPLOY
 ```
 
 ## Dual Build Configuration

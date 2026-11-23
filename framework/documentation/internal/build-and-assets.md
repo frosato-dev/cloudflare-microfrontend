@@ -4,7 +4,7 @@ Sources: `framework/src/vite/fragment.ts`, `framework/src/collect-assets.ts`, `f
 
 Shell assets and fragment assets are handled separately:
 
-- **Shell** (Vue runtime, shell JS/CSS): collected into `dist/static/assets/` and served by the shell's `ASSETS` binding.
+- **Shell** (Vue runtime, shell JS/CSS): each app collects its own files into `packages/apps/<app>/dist/static/assets/`, served by that app's `ASSETS` binding.
 - **Fragments**: each fragment ships its own client assets and serves them itself under `/_fragments/<id>/*`. A fragment deploy never needs a shell deploy. See [Fragment-Owned Assets](../thinking/project-fragment-owned-assets.md).
 
 ## Build Order
@@ -58,13 +58,15 @@ flowchart LR
 - Fragment: `assets.run_worker_first: true`, so the Worker serves `/_fragments/*` from `env.ASSETS` and renders everything else.
 - Production with a CDN: build with `FRAGMENT_ASSET_BASE=https://static.<domain>` and upload `dist/client/<id>/` to that origin. Not implemented yet.
 
-## `collectAssets()` (shell only)
+## `collectAssets()` (shell only, per app)
 
-1. Discover apps.
-2. Clean `dist/static`.
-3. For each app, read `dist/client/.vite/manifest.json`, record logical → hashed names, and copy the files to `dist/static/assets/`.
-4. Detect `vue.[hash].js`, which is emitted as a raw asset and isn't in the Vite manifest.
-5. Write `dist/static/assets/manifest.json` and `dist/static/_headers`.
+For each app:
+1. Clean `<app>/dist/static`.
+2. Read `<app>/dist/client/.vite/manifest.json`, record logical → hashed names, and copy the files to `<app>/dist/static/assets/`.
+3. Detect `vue.[hash].js`, which is emitted as a raw asset and isn't in the Vite manifest.
+4. Write `<app>/dist/static/assets/manifest.json` and `<app>/dist/static/_headers`.
+
+Each app's `wrangler.jsonc` has `assets.directory: "dist/static"`. Apps must not share a static folder: every shell build produces the logical names `shell.js` and `shell.css`. A shared manifest let the last app overwrite the others, so back-office was running front-office's client bundle.
 
 ```json
 {

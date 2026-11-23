@@ -39,7 +39,7 @@ Scaffold a new shell app (the orchestrating worker that stitches fragments). The
   "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
-    "directory": "../../../dist/static",
+    "directory": "dist/static",
     "binding": "ASSETS",
     "html_handling": "none"
   },

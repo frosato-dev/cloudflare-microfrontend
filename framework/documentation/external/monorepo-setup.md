@@ -6,21 +6,18 @@
 monorepo/
   package.json                 # Root scripts, volta config, framework dep
   pnpm-workspace.yaml          # Workspace definition
-  dist/
-    static/                    # collectAssets() output — served by Cloudflare
-      assets/
-        manifest.json
-        shell.[hash].js
-        shell.[hash].css
-        vue.[hash].js
-        fragment-header.[hash].js
-        ...
   packages/
     apps/
       front-office/            # Shell worker
+        dist/static/           # collectAssets() output, this app only (its ASSETS binding)
+          assets/
+            manifest.json
+            shell.[hash].js
+            shell.[hash].css
+            vue.[hash].js
       back-office/
     fragments/
-      fragment-header/
+      fragment-header/         # serves its own dist/client/header/* at /_fragments/header/*
       fragment-footer/
       fragment-product/
 ```
@@ -59,7 +56,7 @@ Build must follow this order:
 
 1. **Fragments**: `vite build --mode client && vite build`. The client build runs first because the server build inlines the client manifest. Each produces `dist/client/<id>/` assets, which the fragment serves itself, and `dist/server/entry-server.js`.
 2. **Apps**: each produces `dist/server/entry-server.js` and `dist/client/` (with the Vue bundle).
-3. **`collectAssets()`**: merges the **apps'** `dist/client/` into `dist/static/` and writes `manifest.json`. Fragment assets aren't collected.
+3. **`collectAssets()`**: copies each app's `dist/client/` into **that app's own** `dist/static/` and writes its `manifest.json`. Apps never share a manifest, and fragment assets aren't collected.
 
 `pnpm run build` (= `pnpm -r run build`) handles this because pnpm respects workspace dependency order.
 
