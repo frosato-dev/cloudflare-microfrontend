@@ -46,9 +46,10 @@ sequenceDiagram
    { mount: (container) => mountFragment(...), app: null, hydratedProps: '' }
    ```
 2. Find `[data-fragment="${id}"]` in DOM
-3. Parse `data-props` attribute as JSON
-4. `createSSRApp(App, props).mount(container)` — SSR hydration (matches server HTML)
-5. Store `app` instance and `hydratedProps` in registry
+3. Parse the `data-props` attribute as JSON.
+4. Read the fragment's own `<link rel="stylesheet">` tags, which are direct children of the container.
+5. `createSSRApp(fragmentRoot(App, props, css)).mount(container)`: SSR hydration. `fragmentRoot` renders the same `<link>` tags followed by `App`, so the links stay in place and hydration matches.
+6. Store the `app` instance, `hydratedProps` and `version` (`data-fragment-version`) in the registry.
 
 ## SPA Navigation Flow
 
@@ -90,12 +91,15 @@ sequenceDiagram
 2. **View Transitions**: `router.beforeEach` wraps navigation in `document.startViewTransition()` (if enabled and supported)
 3. **Fetch new page**: `fetch(to.fullPath, { headers: { 'X-Navigate': '1' } })` — the `X-Navigate` header tells the shell to skip `Link` preload headers
 4. **Parse HTML**: `new DOMParser().parseFromString(html, 'text/html')`
-5. **Diff fragments**: for each `[data-fragment]` in live DOM:
+5. **Version skew check**: if the shell's `<head>` module scripts changed, or a live fragment's `data-fragment-version` differs from the registry → `location.assign(to.fullPath)` (full page load). The JS already loaded can't hydrate HTML from another deploy.
+6. **Diff fragments**: for each `[data-fragment]` in live DOM:
    - If new props === old `hydratedProps` AND app exists AND content not empty → **skip** (preserves client state like cart count)
    - Otherwise → unmount old app, replace innerHTML, update `data-props`
-6. **Inject CSS**: any `<link rel="stylesheet">` in new HTML not in current `<head>` → append
-7. **Load scripts**: for fragment scripts in new HTML whose fragment isn't in registry → `import(src)`
-8. **Re-mount**: for fragments with no `app` → call `registry[id].mount(el)`
+7. **Inject CSS**: any `<link rel="stylesheet">` in the new HTML that isn't in the current `<head>` → append it.
+8. **Load scripts**: any `<body>` module script whose URL hasn't been loaded yet → `import(src)`. URLs come from each fragment's response. If an import fails (asset gone) → full page load.
+9. **Re-mount**: for fragments with no `app` → call `registry[id].mount(el)`.
+
+`vite:preloadError` (a lazy chunk of an old deploy is gone) → `location.reload()`, at most once every 10 seconds.
 
 ## `createSSRApp` vs `createApp`
 
@@ -106,7 +110,8 @@ sequenceDiagram
 
 In `mountFragment()` (`framework/src/hydration/fragment.ts:20`):
 ```ts
-const app = ssr ? createSSRApp(App, props) : createApp(App, props);
+const root = fragmentRoot(App, props, css);
+const app = ssr ? createSSRApp(root) : createApp(root);
 ```
 
 ## Stale Navigation Protection
@@ -121,6 +126,7 @@ Record<string, {
   mount: (container: Element) => void;  // Re-mount function (uses createApp, not createSSRApp)
   app: App | null;                       // Current Vue app instance (null after unmount)
   hydratedProps: string;                 // JSON string of last-hydrated props (for diffing)
+  version?: string;                      // data-fragment-version of mounted HTML (skew check)
 }>
 ```
 

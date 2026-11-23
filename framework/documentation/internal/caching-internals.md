@@ -22,7 +22,7 @@ Example: `https://example.com/product/42?__fragment=header`
 ```ts
 const cached = await cache.match(cacheKey);
 if (cached) {
-  const result = await cached.json();
+  const result = await readFragmentResponse(cached); // HTML body + X-Fragment-* headers
   result._meta = { cached: true };
   return result;
 }

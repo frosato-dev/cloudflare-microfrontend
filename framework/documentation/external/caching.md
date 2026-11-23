@@ -29,7 +29,7 @@ export default defineFragmentConfig({
 });
 ```
 
-- Controls the `Cache-Control` header on the fragment JSON response
+- Controls the `Cache-Control` header on the fragment HTML response
 - The shell caches fragment responses independently using a `__fragment` query param as cache key namespace
 - Fragment cache writes use `ctx.waitUntil()` — non-blocking
 

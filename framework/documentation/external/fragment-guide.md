@@ -31,7 +31,7 @@ export default defineFragmentConfig({
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `cache` | `string` | `'private, no-cache'` | `Cache-Control` on the fragment JSON response |
+| `cache` | `string` | `'private, no-cache'` | `Cache-Control` on the fragment HTML response |
 | `props` | `(request: Request) => Record<string, string>` | — | Extract props from the incoming request (query params set by shell) |
 
 ## `src/App.vue`

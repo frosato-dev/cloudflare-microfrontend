@@ -1,90 +1,82 @@
 # Build & Assets
 
-Source: `framework/src/collect-assets.ts`
+Sources: `framework/src/vite/fragment.ts`, `framework/src/collect-assets.ts`, `framework/src/fragment-protocol.ts`
+
+Shell assets and fragment assets are handled separately:
+
+- **Shell** (Vue runtime, shell JS/CSS): collected into `dist/static/assets/` and served by the shell's `ASSETS` binding.
+- **Fragments**: each fragment ships its own client assets and serves them itself under `/_fragments/<id>/*`. A fragment deploy never needs a shell deploy. See [Fragment-Owned Assets](../thinking/project-fragment-owned-assets.md).
 
 ## Build Order
 
-1. `pnpm -r run build` — builds all packages (pnpm respects dep order: fragments before apps)
-2. Each package runs: `vite build && vite build --mode client`
-3. `collectAssets()` — runs during `framework-cli preview` and `framework-cli deploy`
+1. `pnpm -r run build` builds every package.
+2. Fragments run `vite build --mode client && vite build`. The client build runs first, because the server build inlines the client manifest.
+3. Apps run `vite build && vite build --mode client`.
+4. `collectAssets()` runs during `framework-cli preview` and `framework-cli deploy`, for **apps only**.
 
-## `collectAssets()` Walkthrough
+## Fragment Build
 
-```ts
-function collectAssets(root: string)
-```
+### Client (`--mode client`)
 
-1. **Discover workers**: `discoverWorkers(root)` finds all fragments + apps
-2. **Clean**: `rm -rf dist/static`
-3. **Create target**: `mkdir dist/static/assets/`
-4. **For each worker**:
-   - Read `dist/client/.vite/manifest.json` (Vite build manifest)
-   - Extract logical names by stripping 8-char hashes: `shell.D6XthhtI.js` → `shell.js`
-   - Record mappings in `mergedManifest`
-   - Copy all files from `dist/client/` to `dist/static/assets/` (skip `.vite/` dir)
-5. **Detect Vue bundle**: find `vue.[hash].js` in assets (not in Vite manifest since it's a raw emitted asset)
-6. **Write `manifest.json`**: merged manifest into `dist/static/assets/`
-7. **Copy manifest to apps**: write into each app's `dist/server/` so the worker can read it at runtime
-8. **Write `_headers`**: Cloudflare static asset cache headers
+- `base` = `FRAGMENT_ASSET_BASE` env var, defaulting to `/_fragments`.
+- Files are written under `dist/client/<id>/` (entry, chunks, CSS), so the URL is `<base>/<id>/<file>`.
+- `vue` is external and resolved through the shell's import map.
+- Extra files:
+  - `_headers`: `Cache-Control: public, max-age=31536000, immutable`
+  - `.assetsignore`: keeps `.vite/manifest.json` private
 
-## Manifest Shape
+### Server
+
+The `virtual:fragment-build-info` module reads `dist/client/.vite/manifest.json` and inlines:
 
 ```json
 {
-  "shell.js": "shell.D6XthhtI.js",
-  "shell.css": "shell.BqYZ2kFo.css",
-  "vue.js": "vue.a1b2c3d4.js",
-  "fragment-header.js": "fragment-header.DbLCPfZE.js",
-  "fragment-header.css": "fragment-header.D6XthhtI.css",
-  "fragment-footer.js": "fragment-footer.X7mKp2qR.js",
-  "fragment-footer.css": "fragment-footer.Y8nLq3rS.css"
+  "version": "header@232e6536",
+  "vue": "3.5.31",
+  "assets": {
+    "js": "/_fragments/header/fragment-header.CZPg0p9a.js",
+    "css": ["/_fragments/header/fragment-header.D6XthhtI.css"]
+  }
 }
 ```
 
-Keys are logical names, values are hashed filenames. At runtime, `buildShellTags()` and `buildFragmentHeadTags()` resolve logical → hashed.
+- `version` = fragment ID + a hash of the client manifest. It's content-based, so the same code gives the same version.
+- `vue` = the Vue version the fragment compiled against.
+- A custom `src/entry-server.ts` can `import buildInfo from 'virtual:fragment-build-info'`.
 
-## `_headers` File
-
-```
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
-```
-
-Cloudflare serves static assets with immutable caching — safe because filenames are content-hashed.
-
-## Runtime Asset Resolution
-
-In `createShellWorker()` (`framework/src/worker/shell.ts`):
-
-```ts
-if (!manifest && (env as any).ASSETS) {
-  const res = await (env as any).ASSETS.fetch(new Request('https://dummy/assets/manifest.json'));
-  if (res.ok) manifest = await res.json();
-}
-```
-
-The manifest is lazy-loaded once from the `ASSETS` binding (Cloudflare static assets). All subsequent requests use the cached manifest.
-
-## Asset Flow
+## Serving
 
 ```mermaid
 flowchart LR
-    subgraph Build
-        VB["vite build\n(per package)"] --> DC["dist/client/\n*.js, *.css"]
-    end
-
-    subgraph collectAssets
-        DC --> SCAN[Scan dist/client/ dirs]
-        SCAN --> COPY[Copy to dist/static/assets/]
-        SCAN --> MAN["Write manifest.json\n(logical → hashed)"]
-        MAN --> SRVCP[Copy manifest to\neach app dist/server/]
-        COPY --> HDR["Write _headers\n(immutable cache)"]
-    end
-
-    subgraph Runtime
-        W[Shell Worker] -->|"env.ASSETS.fetch\nmanifest.json"| MAN2[manifest.json]
-        MAN2 --> RES["Resolve:\nshell.js → shell.D6Xt.js"]
-        RES --> HTML["<script src=/assets/shell.D6Xt.js>"]
-        B[Browser] -->|"GET /assets/*"| STATIC[Cloudflare Static Assets]
-    end
+    B[Browser] -->|"GET /assets/*"| SA[Shell static assets]
+    B -->|"GET /_fragments/header/*"| SH[Shell worker]
+    SH -->|"FRAGMENT_HEADER binding"| FH[fragment-header worker]
+    FH -->|"strip /_fragments → /header/*"| FA[Fragment static assets]
 ```
+
+- Shell: `/_fragments/<id>/*` is forwarded to the `FRAGMENT_<ID>` binding, and an unknown ID returns 404.
+- Fragment: `assets.run_worker_first: true`, so the Worker serves `/_fragments/*` from `env.ASSETS` and renders everything else.
+- Production with a CDN: build with `FRAGMENT_ASSET_BASE=https://static.<domain>` and upload `dist/client/<id>/` to that origin. Not implemented yet.
+
+## `collectAssets()` (shell only)
+
+1. Discover apps.
+2. Clean `dist/static`.
+3. For each app, read `dist/client/.vite/manifest.json`, record logical → hashed names, and copy the files to `dist/static/assets/`.
+4. Detect `vue.[hash].js`, which is emitted as a raw asset and isn't in the Vite manifest.
+5. Write `dist/static/assets/manifest.json` and `dist/static/_headers`.
+
+```json
+{
+  "shell.js": "shell.CetAH-Kc.js",
+  "shell.css": "shell.D_Ll61a1.css",
+  "vue.js": "vue.01104521.js"
+}
+```
+
+The shell lazy-loads this manifest once per isolate from its `ASSETS` binding, and `buildShellTags()` resolves the logical names.
+
+## Local Preview
+
+- `framework-cli preview` runs every Worker in one `wrangler dev` process. Static assets for secondary Workers need wrangler ≥ 4.165, because older versions return 500.
+- It clears `packages/apps/<app>/.wrangler/state/v3/cache` on start. Otherwise, cached pages and fragments from a previous build would reference assets that no longer exist.

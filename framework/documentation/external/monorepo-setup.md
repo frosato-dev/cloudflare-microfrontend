@@ -57,15 +57,16 @@ Vue and vue-router are root dependencies shared by all packages.
 
 Build must follow this order:
 
-1. **Fragments** — each produces `dist/server/entry-server.js` + `dist/client/` assets
-2. **Apps** — each produces `dist/server/entry-server.js` + `dist/client/` (with Vue bundle)
-3. **`collectAssets()`** — merges all `dist/client/` into `dist/static/`, writes `manifest.json`, copies manifest into each app's `dist/server/`
+1. **Fragments**: `vite build --mode client && vite build`. The client build runs first because the server build inlines the client manifest. Each produces `dist/client/<id>/` assets, which the fragment serves itself, and `dist/server/entry-server.js`.
+2. **Apps**: each produces `dist/server/entry-server.js` and `dist/client/` (with the Vue bundle).
+3. **`collectAssets()`**: merges the **apps'** `dist/client/` into `dist/static/` and writes `manifest.json`. Fragment assets aren't collected.
 
 `pnpm run build` (= `pnpm -r run build`) handles this because pnpm respects workspace dependency order.
 
-Each package's `build` script typically runs:
+Build scripts:
 ```bash
-vite build && vite build --mode client
+vite build && vite build --mode client   # apps
+vite build --mode client && vite build   # fragments (client first)
 ```
 
 ## Service Binding Auto-Generation
