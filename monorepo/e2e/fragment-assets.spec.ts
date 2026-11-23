@@ -41,7 +41,9 @@ test.describe('Fragment-owned assets', () => {
 test.describe('Version skew', () => {
   async function hydratedHome(page: import('@playwright/test').Page) {
     await page.goto('/');
-    await page.waitForFunction(() => (globalThis as any).__fragmentRegistry?.header?.version);
+    // Header fragment hydrated AND shell mounted (router initial navigation done — earlier clicks skip the fragment fetch)
+    await page.waitForFunction(() =>
+      (globalThis as any).__fragmentRegistry?.header?.version && (document.querySelector('#app') as any)?.__vue_app__);
     await page.evaluate(() => ((window as any).__sameDocument = true));
   }
 
@@ -63,9 +65,12 @@ test.describe('Version skew', () => {
       return route.fulfill({ response: res, body });
     });
 
+    // `load` only fires for a full document load (SPA nav = pushState, no load event)
+    const fullLoad = page.waitForEvent('load');
     await page.locator('header nav a', { hasText: 'Products' }).click();
+    await fullLoad;
     await expect(page).toHaveURL('/product/iphone-15');
-    await expect.poll(() => page.evaluate(() => (window as any).__sameDocument)).toBeUndefined();
+    expect(await page.evaluate(() => (window as any).__sameDocument)).toBeUndefined();
     await expect(page.locator('.product-card')).toBeVisible();
   });
 });
